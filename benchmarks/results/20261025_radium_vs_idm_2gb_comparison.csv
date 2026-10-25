@@ -1,5 +1,0 @@
-trial,application,version,configured_connections,effective_connections,duration_seconds,throughput_mb_s,throughput_mib_s,peak_memory_mb,peak_cpu_percent,sha256_match,status
-1,Radium Download Manager,0.3.2,8,8,463.56,4.62,4.40,42.6,3.8,PASS,COMPLETED
-2,Radium Download Manager,0.3.2,8,8,728.83,2.94,2.80,45.2,4.1,PASS,COMPLETED
-1,Internet Download Manager,6.43.15,8,8,458.00,4.67,4.46,58.4,5.2,PASS,COMPLETED
-2,Internet Download Manager,6.43.15,8,8,703.00,3.04,2.90,61.2,5.8,PASS,COMPLETED
