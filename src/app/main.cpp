@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
             controller.Shutdown();
             return 1;
         }
-        auto done = controller.WaitForTaskCompletion(added.value->task_id, 120000);
+        auto done = controller.WaitForTaskCompletion(added.value->task_id, 300000);
         controller.Shutdown();
         if (!done.ok() || done.value->state != openidm::TaskState::kCompleted) {
             std::string err_msg = "ERROR: Task failed: " + (done.ok() ? done.value->error_message : done.error->message) + "\n";

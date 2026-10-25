@@ -47,6 +47,7 @@ public:
             fm.entry.relative_path = PathSanitizer::SanitizeFileName(info.name);
             fm.entry.length = info.total_length;
             fm.entry.offset_in_torrent = 0;
+            fm.entry.selected = true;
             fm.full_path = m_base_dir / fm.entry.relative_path;
             m_files.push_back(fm);
         }
@@ -57,6 +58,7 @@ public:
     Result<void> AllocateFiles() {
         std::error_code ec;
         for (const auto& fm : m_files) {
+            if (!fm.entry.selected) continue; // Skip unselected files
             std::filesystem::path parent = fm.full_path.parent_path();
             if (!parent.empty() && !std::filesystem::exists(parent, ec)) {
                 std::filesystem::create_directories(parent, ec);
@@ -69,6 +71,12 @@ public:
             }
         }
         return Result<void>::Ok();
+    }
+
+    void SetFileSelection(size_t file_index, bool selected) {
+        if (file_index < m_files.size()) {
+            m_files[file_index].entry.selected = selected;
+        }
     }
 
     // Direct adoption of aria2 MultiDiskAdaptor::writeData
@@ -99,29 +107,31 @@ public:
             uint64_t avail_in_file = fm.entry.length - offset_in_file;
             size_t to_write = static_cast<size_t>(std::min<uint64_t>(rem, avail_in_file));
 
-            std::error_code ec;
-            std::filesystem::path parent = fm.full_path.parent_path();
-            if (!parent.empty() && !std::filesystem::exists(parent, ec)) {
-                std::filesystem::create_directories(parent, ec);
-            }
+            if (fm.entry.selected) {
+                std::error_code ec;
+                std::filesystem::path parent = fm.full_path.parent_path();
+                if (!parent.empty() && !std::filesystem::exists(parent, ec)) {
+                    std::filesystem::create_directories(parent, ec);
+                }
 
-            // Open with read/write in binary mode without truncation
-            std::fstream fs(fm.full_path, std::ios::in | std::ios::out | std::ios::binary);
-            if (!fs) {
-                fs.clear();
-                fs.open(fm.full_path, std::ios::out | std::ios::binary);
-                fs.close();
-                fs.open(fm.full_path, std::ios::in | std::ios::out | std::ios::binary);
-            }
-            if (!fs) {
-                return Result<void>::Err("ERR_STORAGE_WRITE", "Cannot open for write: " + fm.full_path.string());
-            }
+                // Open with read/write in binary mode without truncation
+                std::fstream fs(fm.full_path, std::ios::in | std::ios::out | std::ios::binary);
+                if (!fs) {
+                    fs.clear();
+                    fs.open(fm.full_path, std::ios::out | std::ios::binary);
+                    fs.close();
+                    fs.open(fm.full_path, std::ios::in | std::ios::out | std::ios::binary);
+                }
+                if (!fs) {
+                    return Result<void>::Err("ERR_STORAGE_WRITE", "Cannot open for write: " + fm.full_path.string());
+                }
 
-            fs.seekp(static_cast<std::streamoff>(offset_in_file), std::ios::beg);
-            fs.write(reinterpret_cast<const char*>(src), static_cast<std::streamsize>(to_write));
-            fs.flush();
-            if (!fs.good()) {
-                return Result<void>::Err("ERR_STORAGE_WRITE", "Write failed on: " + fm.full_path.string());
+                fs.seekp(static_cast<std::streamoff>(offset_in_file), std::ios::beg);
+                fs.write(reinterpret_cast<const char*>(src), static_cast<std::streamsize>(to_write));
+                fs.flush();
+                if (!fs.good()) {
+                    return Result<void>::Err("ERR_STORAGE_WRITE", "Write failed on: " + fm.full_path.string());
+                }
             }
 
             src += to_write;
@@ -161,15 +171,19 @@ public:
             uint64_t avail_in_file = fm.entry.length - offset_in_file;
             size_t to_read = static_cast<size_t>(std::min<uint64_t>(rem, avail_in_file));
 
-            std::ifstream ifs(fm.full_path, std::ios::binary);
-            if (!ifs) {
-                return Result<void>::Err("ERR_STORAGE_READ", "Cannot open for read: " + fm.full_path.string());
-            }
+            if (fm.entry.selected && std::filesystem::exists(fm.full_path)) {
+                std::ifstream ifs(fm.full_path, std::ios::binary);
+                if (!ifs) {
+                    return Result<void>::Err("ERR_STORAGE_READ", "Cannot open for read: " + fm.full_path.string());
+                }
 
-            ifs.seekg(static_cast<std::streamoff>(offset_in_file), std::ios::beg);
-            ifs.read(reinterpret_cast<char*>(dst), static_cast<std::streamsize>(to_read));
-            if (!ifs.good() && !ifs.eof()) {
-                return Result<void>::Err("ERR_STORAGE_READ", "Read failed on: " + fm.full_path.string());
+                ifs.seekg(static_cast<std::streamoff>(offset_in_file), std::ios::beg);
+                ifs.read(reinterpret_cast<char*>(dst), static_cast<std::streamsize>(to_read));
+                if (!ifs.good() && !ifs.eof()) {
+                    return Result<void>::Err("ERR_STORAGE_READ", "Read failed on: " + fm.full_path.string());
+                }
+            } else {
+                std::memset(dst, 0, to_read);
             }
 
             dst += to_read;

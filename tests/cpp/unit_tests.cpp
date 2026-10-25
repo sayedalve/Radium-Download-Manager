@@ -25,6 +25,16 @@
 #include "engine_torrent/piece_manager.hpp"
 #include "engine_torrent/torrent_engine.hpp"
 #include "engine_torrent/torrent_parser.hpp"
+#include "engine_torrent/dht_client.hpp"
+
+bool TestBitTorrentEngineTransferAndIntegrity();
+
+bool TestUdpTrackerProtocolLiveExchange();
+bool TestMagnetMetadataExchangeBEP9Live();
+bool TestDhtIterativePeerDiscoveryLive();
+bool TestMultiPeerTransferAndSeedingControls();
+#include "mock_torrent_fixtures.hpp"
+#include "mock_peer_server.hpp"
 #include "engine_torrent/tracker_client.hpp"
 #include "ipc/ipc_server.hpp"
 #include "security/antivirus_scanner.hpp"
@@ -41,6 +51,10 @@
 #include <regex>
 #include <string>
 #include <vector>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #define ASSERT_TRUE(cond, msg) \
     do { \
@@ -707,6 +721,21 @@ bool TestDesktopUiInteractionsFilteringSortingAndRedaction() {
     // 1. Responsive column hiding at compact width vs full width
     view.SetWindowDimensions(920, 600, 96);
     ASSERT_TRUE(view.IsCompactColumnsMode() && view.GetVisibleColumns().size() == 6, "Compact mode (<1024px) shows 6 columns");
+    auto compact_geometry = view.ComputeLayoutGeometry();
+    ASSERT_TRUE(compact_geometry.table_columns.size() >= 6 && compact_geometry.table_columns[5].rect.right <= 904,
+                "Compact layout keeps all six useful columns within the client width");
+    ASSERT_TRUE(compact_geometry.table_columns[0].rect.width() >= 260,
+                "Compact Name column reserves room for a four-digit index and file controls");
+    view.SetColumnWidth(2, 360);
+    auto restored_compact_geometry = view.ComputeLayoutGeometry();
+    ASSERT_TRUE(restored_compact_geometry.table_columns[0].rect.width() >= 260 &&
+                    restored_compact_geometry.table_columns[2].rect.width() < 360 &&
+                    restored_compact_geometry.table_columns[5].rect.right <= 904,
+                "Restored compact layout shrinks a wide saved Status column before clipping Name or the table");
+    view.SetWindowDimensions(700, 540, 96);
+    auto narrow_geometry = view.ComputeLayoutGeometry();
+    ASSERT_TRUE(narrow_geometry.table_columns.size() >= 6 && narrow_geometry.table_columns[5].rect.right <= 684,
+                "Minimum-width layout compresses columns without drawing beyond the client area");
     view.SetWindowDimensions(1280, 720, 96);
     ASSERT_TRUE(!view.IsCompactColumnsMode() && view.GetVisibleColumns().size() == 8, "Full mode (>=1024px) shows 8 columns");
 
@@ -883,6 +912,10 @@ bool TestDesktopUiHitTestingAndMouseInteractions() {
     ASSERT_TRUE(hover_res.type == openidm::ui::HitTargetType::kTaskRow, "Hover hit-tests task row");
     ASSERT_TRUE(view.GetActiveTooltip() == "Very_Long_University_Computer_Science_Lecture_Recording_2026_1080p_60fps.mp4",
                 "Hovering truncated filename exposes full untruncated filename in tooltip");
+    const auto& next_row = geom.task_rows[1].row_rect;
+    auto next_hover = view.HandleMouseMove((next_row.left + next_row.right) / 2, (next_row.top + next_row.bottom) / 2);
+    ASSERT_TRUE(next_hover.type == openidm::ui::HitTargetType::kTaskRow && view.GetHoveredRowIndex() == 1,
+                "Moving the pointer to the next task row updates hover state immediately");
 
     // 4. Verify Table Column Headers are static and non-interactive
     const auto& col0_rc = geom.table_columns[0].rect;
@@ -2586,6 +2619,43 @@ bool TestPieceManagerAndBlockScheduling() {
     ASSERT_TRUE(!verified && corrupt, "Corrupt piece detected by SHA-1 verification and rejected");
     ASSERT_TRUE(mgr.CompletedPieces() == 1, "Piece 1 not marked complete due to corruption");
 
+    // Selective multi-file regression: only pieces overlapping selected files are requested,
+    // and unselected files are never allocated or written.
+    TorrentInfo selective;
+    selective.name = "selective.bin";
+    selective.total_length = 4000;
+    selective.piece_length = 1000;
+    selective.files = {
+        TorrentFileEntry{"wanted/a.bin", 1000, 0, true},
+        TorrentFileEntry{"unwanted/b.bin", 2000, 1000, false},
+        TorrentFileEntry{"wanted/c.bin", 1000, 3000, true}
+    };
+    std::vector<uint8_t> selected_piece_a(1000, 'A');
+    std::vector<uint8_t> selected_piece_c(1000, 'C');
+    selective.pieces = {
+        openidm::CryptoUtils::ComputeBufferSha1Raw(selected_piece_a.data(), selected_piece_a.size()),
+        std::vector<uint8_t>(20, 0), std::vector<uint8_t>(20, 0),
+        openidm::CryptoUtils::ComputeBufferSha1Raw(selected_piece_c.data(), selected_piece_c.size())
+    };
+    auto selective_storage = std::make_shared<MultiFileStorage>();
+    std::filesystem::path selective_dir = temp_dir / "selective";
+    ASSERT_TRUE(selective_storage->Initialize(selective_dir, selective).ok(), "Selective storage initialized");
+    ASSERT_TRUE(selective_storage->AllocateFiles().ok(), "Selective storage allocation succeeds");
+    ASSERT_TRUE(!std::filesystem::exists(selective_dir / "unwanted" / "b.bin"), "Unselected torrent file is not created");
+    PieceManager selective_mgr(selective, selective_storage);
+    ASSERT_TRUE(selective.selected_bytes() == 2000 && selective_mgr.RequiredPieces() == 2,
+                "Selected byte total and required piece count account only for selected files");
+    auto selective_reqs = selective_mgr.GetNextRequestsForPeer({true, true, true, true}, 8);
+    ASSERT_TRUE(selective_reqs.size() == 1 && selective_reqs[0].piece_index == 0,
+                "Selective scheduler requests the first required piece only");
+    bool selective_verified = false;
+    bool selective_corrupt = false;
+    selective_mgr.ProcessBlock(0, 0, selected_piece_a.data(), selected_piece_a.size(), selective_verified, selective_corrupt);
+    ASSERT_TRUE(selective_verified && selective_mgr.DownloadedBytes() == 1000, "Selected piece is verified and counted by selected bytes");
+    selective_reqs = selective_mgr.GetNextRequestsForPeer({true, true, true, true}, 8);
+    ASSERT_TRUE(selective_reqs.size() == 1 && selective_reqs[0].piece_index == 3,
+                "Scheduler skips unselected middle-file pieces and requests the final selected piece");
+
     std::filesystem::remove_all(temp_dir, ec);
     return true;
 }
@@ -2610,12 +2680,30 @@ bool TestTrackerClientQueryEncodingAndResponseParsing() {
     ASSERT_TRUE(tr_res.value->peers[0].ip == "192.168.1.105" && tr_res.value->peers[0].port == 6881, "Peer 0 matches");
     ASSERT_TRUE(tr_res.value->peers[1].ip == "10.0.0.1" && tr_res.value->peers[1].port == 80, "Peer 1 matches");
 
+    const std::string kZeroPeerResp = "d8:completei0e10:incompletei0e8:intervali60e5:peers0:e";
+    auto zero_peer_res = TrackerClient::ParseTrackerResponse(kZeroPeerResp);
+    ASSERT_TRUE(zero_peer_res.ok() && zero_peer_res.value->peers.empty(),
+                "A valid zero-peer tracker response is successful and yields an empty peer set");
+
+    const std::string kMalformedCompactResp = "d8:completei1e10:incompletei1e8:intervali60e5:peers5:abcde";
+    auto malformed_compact_res = TrackerClient::ParseTrackerResponse(kMalformedCompactResp);
+    ASSERT_TRUE(!malformed_compact_res.ok(), "Malformed compact peer payload is rejected");
+    ASSERT_TRUE(malformed_compact_res.error->code == "ERR_TORRENT_TRACKER_MALFORMED",
+                "Malformed compact peer payload reports tracker response error");
+
     // 3. Tracker Failure Reason parsing
     std::string fail_resp = "d14:failure reason26:Torrent passkey is invalide";
     auto fail_res = TrackerClient::ParseTrackerResponse(fail_resp);
     ASSERT_TRUE(!fail_res.ok(), "Tracker failure response detected");
     ASSERT_TRUE(fail_res.error->code == "ERR_TORRENT_TRACKER_FAILURE", "Code is ERR_TORRENT_TRACKER_FAILURE");
     ASSERT_TRUE(fail_res.error->message == "Torrent passkey is invalid", "Error message contains failure reason");
+
+    // 4. Multi-tracker fallback & empty tracker handling
+    std::vector<std::string> empty_trackers;
+    std::vector<uint8_t> dummy_hash(20, 0x11);
+    auto no_tr_res = TrackerClient::AnnounceAny(empty_trackers, dummy_hash, "-RA0300-123456789012", 6881, 0, 0, 100);
+    ASSERT_TRUE(!no_tr_res.ok(), "Empty announce list returns error");
+    ASSERT_TRUE(no_tr_res.error->code == "ERR_TORRENT_NO_TRACKERS", "Code is ERR_TORRENT_NO_TRACKERS");
 
     return true;
 }
@@ -2945,19 +3033,30 @@ bool TestModernCoralThemeSettingsModalBoundsAndSafeDelete() {
     openidm::AppSettings default_settings;
     ASSERT_TRUE(default_settings.theme == "coral_dark", "Default theme is coral_dark");
 
-    // 2. Palette resolution: "coral_dark", "coral", "charcoal", and legacy "dark" resolve to GetRedesignPalette (#FF4F57)
+    // 2. Palette resolution: "coral_dark", "coral", "charcoal", and legacy "dark" resolve to GetRedesignPalette (#FF4757)
     auto pal_coral = openidm::ui::DesignSystem::ResolvePalette("coral_dark");
     ASSERT_TRUE(pal_coral.accent_primary.r == 0xFF &&
-                pal_coral.accent_primary.g == 0x4F &&
-                pal_coral.accent_primary.b == 0x57, "coral_dark resolves to coral red #FF4F57");
+                pal_coral.accent_primary.g == 0x47 &&
+                pal_coral.accent_primary.b == 0x57, "coral_dark resolves to coral red #FF4757");
     ASSERT_TRUE(pal_coral.app_background.r == 0x16 &&
                 pal_coral.app_background.g == 0x16 &&
                 pal_coral.app_background.b == 0x18, "coral_dark resolves to warm matte charcoal background #161618");
+    ASSERT_TRUE(pal_coral.surface_primary.ToCssHex() == "#1E1E22" &&
+                pal_coral.surface_elevated.ToCssHex() == "#28282E" &&
+                pal_coral.surface_hover.ToCssHex() == "#2B2B32" &&
+                pal_coral.surface_selected.ToCssHex() == "#302328" &&
+                pal_coral.border_subtle.ToCssHex() == "#35353D" &&
+                pal_coral.progress_track.ToCssHex() == "#303036",
+                "coral_dark uses the approved charcoal surfaces and progress track");
+    ASSERT_TRUE(pal_coral.status_success.ToCssHex() == "#A9B4C2" &&
+                pal_coral.status_warning.ToCssHex() == "#F2B84B" &&
+                pal_coral.status_danger.ToCssHex() == "#FF9F43",
+                "coral_dark uses muted completion, amber warning, and orange failure colors");
 
     auto pal_dark = openidm::ui::DesignSystem::ResolvePalette("dark");
     ASSERT_TRUE(pal_dark.accent_primary.r == 0xFF &&
-                pal_dark.accent_primary.g == 0x4F &&
-                pal_dark.accent_primary.b == 0x57, "legacy dark resolves to coral red #FF4F57");
+                pal_dark.accent_primary.g == 0x47 &&
+                pal_dark.accent_primary.b == 0x57, "legacy dark resolves to coral red #FF4757");
 
     auto pal_classic = openidm::ui::DesignSystem::ResolvePalette("classic_blue");
     ASSERT_TRUE(pal_classic.accent_primary.r == 0x25 &&
@@ -3126,10 +3225,10 @@ bool TestFinalPhaseRemediationAndLiveMetrics() {
     AppSettings def_settings;
     ASSERT_TRUE(def_settings.theme == "coral_dark", "Default theme is coral_dark");
     auto pal = openidm::ui::DesignSystem::ResolvePalette("coral_dark");
-    ASSERT_TRUE(pal.accent_primary.r == 0xFF && pal.accent_primary.g == 0x4F && pal.accent_primary.b == 0x57,
-                "coral_dark accent is coral red #FF4F57");
+    ASSERT_TRUE(pal.accent_primary.r == 0xFF && pal.accent_primary.g == 0x47 && pal.accent_primary.b == 0x57,
+                "coral_dark accent is coral red #FF4757");
     ASSERT_TRUE(openidm::ui::DesignSystem::ResolvePalette("").accent_primary.r == 0xFF,
-                "Fallback theme defaults to coral red #FF4F57");
+                "Fallback theme defaults to coral red #FF4757");
 
     // 2. Safe File Deletion in Controller
     std::error_code ec;
@@ -3145,6 +3244,23 @@ bool TestFinalPhaseRemediationAndLiveMetrics() {
 
     DownloadController ctrl(cfg);
     ASSERT_TRUE(ctrl.Initialize().ok(), "Init controller for safe deletion");
+
+    // Removing a partial task cleans only its task-owned part file and preserves
+    // the task's ordinary destination name.
+    TaskModel partial_task;
+    partial_task.task_id = "task-safe-del-partial";
+    partial_task.url = "https://example.com/partial_output.dat";
+    partial_task.file_name = "partial_output.dat";
+    partial_task.save_dir = cfg.default_download_dir.string();
+    partial_task.state = TaskState::kPaused;
+    partial_task.part_path = (cfg.default_download_dir / "partial_output.dat.openidm.part").string();
+    { std::ofstream ofs(partial_task.part_path, std::ios::binary); ofs << "partial bytes"; }
+    const auto ordinary_destination = cfg.default_download_dir / partial_task.file_name;
+    { std::ofstream ofs(ordinary_destination, std::ios::binary); ofs << "pre-existing destination"; }
+    ASSERT_TRUE(ctrl.AddTask(partial_task, false, true).ok(), "Add partial task");
+    ASSERT_TRUE(ctrl.RemoveTask(partial_task.task_id, false).ok(), "Remove partial task from list");
+    ASSERT_TRUE(!std::filesystem::exists(partial_task.part_path), "Task-owned partial file is cleaned");
+    ASSERT_TRUE(std::filesystem::exists(ordinary_destination), "Remove from List preserves destination file");
 
     // 2a. Completed file deleted when delete_file == true
     std::filesystem::path target_file = cfg.default_download_dir / "sample_completed.dat";
@@ -3173,6 +3289,33 @@ bool TestFinalPhaseRemediationAndLiveMetrics() {
     ASSERT_TRUE(ctrl.RemoveTask("task-safe-del-1", true).ok(), "Remove with delete_file == true");
     ASSERT_TRUE(!std::filesystem::exists(target_file), "File removed from disk when delete_file == true");
     ASSERT_TRUE(!ctrl.GetTask("task-safe-del-1").has_value(), "Task removed from DB");
+
+    // A missing completed output is already absent; remove the record cleanly.
+    TaskModel t3 = t1;
+    t3.task_id = "task-safe-del-missing";
+    t3.file_name = "already_missing.dat";
+    ASSERT_TRUE(ctrl.AddTask(t3, false, true).ok(), "Add completed task with missing output");
+    ASSERT_TRUE(ctrl.RemoveTask(t3.task_id, true).ok(), "Permanent delete accepts an already missing output");
+    ASSERT_TRUE(!ctrl.GetTask(t3.task_id).has_value(), "Missing output task record is removed");
+
+#ifdef _WIN32
+    // A read-only Windows file must not cause the task record to disappear.
+    TaskModel t4 = t1;
+    t4.task_id = "task-safe-del-readonly";
+    t4.file_name = "readonly_output.dat";
+    const auto readonly_path = cfg.default_download_dir / t4.file_name;
+    { std::ofstream ofs(readonly_path, std::ios::binary); ofs << "keep while delete fails"; }
+    ASSERT_TRUE(SetFileAttributesW(readonly_path.c_str(), FILE_ATTRIBUTE_READONLY) != 0,
+                "Set readonly attribute for deletion failure regression");
+    ASSERT_TRUE(ctrl.AddTask(t4, false, true).ok(), "Add completed readonly task");
+    auto readonly_delete = ctrl.RemoveTask(t4.task_id, true);
+    ASSERT_TRUE(!readonly_delete.ok(), "Permanent delete reports readonly file failure");
+    ASSERT_TRUE(ctrl.GetTask(t4.task_id).has_value(), "Task record survives failed file deletion");
+    ASSERT_TRUE(std::filesystem::exists(readonly_path), "Readonly output survives failed deletion");
+    SetFileAttributesW(readonly_path.c_str(), FILE_ATTRIBUTE_NORMAL);
+    ASSERT_TRUE(ctrl.RemoveTask(t4.task_id, true).ok(), "Retry permanent delete after clearing readonly attribute");
+    ASSERT_TRUE(!ctrl.GetTask(t4.task_id).has_value(), "Retried permanent delete removes task record");
+#endif
 
     // 3. Status Bar Metrics and Active Counts
     openidm::ui::DesktopView view(ctrl);
@@ -3253,6 +3396,26 @@ bool TestFinalPhaseRemediationAndLiveMetrics() {
             ASSERT_TRUE(r.full_status_tooltip.find("ERR_NET_CONNECT_TIMEOUT") != std::string::npos, "Failed row tooltip preserves error code");
         }
     }
+    const auto coral_palette = view.GetPalette();
+    for (const auto& r : rows) {
+        if (r.task_id == "task-tbl-active") {
+            ASSERT_TRUE(r.status_indicator_color.ToCssHex() == coral_palette.accent_primary.ToCssHex() &&
+                        r.progress_fill_color.ToCssHex() == coral_palette.accent_primary.ToCssHex(),
+                        "Downloading row uses coral for status and progress");
+        } else if (r.task_id == "task-tbl-paused") {
+            ASSERT_TRUE(r.status_indicator_color.ToCssHex() == coral_palette.status_warning.ToCssHex() &&
+                        r.progress_fill_color.ToCssHex() == coral_palette.status_warning.ToCssHex(),
+                        "Paused row uses amber for status and progress");
+        } else if (r.task_id == "task-tbl-seeding") {
+            ASSERT_TRUE(r.status_indicator_color.ToCssHex() == coral_palette.status_success.ToCssHex() &&
+                        r.progress_fill_color.ToCssHex() == coral_palette.status_success.ToCssHex(),
+                        "Completed row uses green for status and progress");
+        } else if (r.task_id == "task-tbl-failed") {
+            ASSERT_TRUE(r.status_indicator_color.ToCssHex() == coral_palette.status_danger.ToCssHex() &&
+                        r.progress_fill_color.ToCssHex() == coral_palette.status_danger.ToCssHex(),
+                        "Failed row uses coral danger styling");
+        }
+    }
 
     // 4. YouTube Googlevideo Classification Guard
     std::string yt_video_url = "https://rr3---sn-4g5ednks.googlevideo.com/videoplayback?expire=1729272302&ei=xyz&ip=1.2.3.4&id=o-1234&itag=18&source=youtube&requiressl=yes&mime=video%2Fmp4";
@@ -3282,6 +3445,12 @@ bool TestFinalPhaseRemediationAndLiveMetrics() {
     ASSERT_TRUE(!is_in_window("19:00", "09:00", "17:00"), "19:00 outside 09:00-17:00 window");
 
     ctrl.Shutdown();
+    DownloadController reopened(cfg);
+    ASSERT_TRUE(reopened.Initialize().ok(), "Reopen storage after deletion tests");
+    ASSERT_TRUE(!reopened.GetTask("task-safe-del-1").has_value(), "Permanent deletion remains absent after application restart");
+    ASSERT_TRUE(!reopened.GetTask("task-safe-del-missing").has_value(), "Missing-output deletion remains absent after restart");
+    ASSERT_TRUE(!reopened.GetTask("task-safe-del-2").has_value(), "Remove from list also deletes the task record after restart");
+    reopened.Shutdown();
     std::filesystem::remove_all(work_dir, ec);
     return true;
 }
@@ -4769,7 +4938,8 @@ bool TestAutoScrollToCurrentDownload() {
         ASSERT_TRUE(!detected_progress, "Normal progress updates do not re-trigger scroll adjustments");
         ASSERT_TRUE(view.GetScrollOffset() == current_scroll, "Scroll position remains stable during transfer");
 
-        // Now transition an existing paused task to downloading (starting)
+        // Existing task state transitions (including retry/resume/start) must
+        // not be mistaken for a newly-created download.
         auto paused_task_opt = controller.GetTask(task_ids[15]);
         ASSERT_TRUE(paused_task_opt.has_value(), "Paused task exists");
         openidm::TaskModel starting_task = *paused_task_opt;
@@ -4777,8 +4947,8 @@ bool TestAutoScrollToCurrentDownload() {
         controller.UpdateTask(starting_task);
 
         bool detected_start = view.CheckAndAutoScrollNewOrStartedDownloads();
-        ASSERT_TRUE(detected_start, "Detected download start transition and auto-scrolled");
-        ASSERT_TRUE(view.GetSelectedTaskId() == task_ids[15], "Started task is selected");
+        ASSERT_TRUE(!detected_start, "Existing task start does not auto-scroll");
+        ASSERT_TRUE(view.GetScrollOffset() == current_scroll, "Scroll position remains stable when an existing task starts");
 
         controller.Shutdown();
         std::filesystem::remove_all(db_dir, ec);
@@ -4994,9 +5164,355 @@ bool TestHttp429AdaptiveConnectionFallbackAndIntegrity() {
 
 } // namespace
 
+
+bool TestUdpTrackerProtocolLiveExchange() {
+    using namespace openidm::torrent;
+    using namespace openidm::torrent::testing;
+
+    std::cout << "  [1/2] Launching live mock UDP tracker on 127.0.0.1:16882...\n";
+    MockUdpTrackerServer udp_tracker(16882);
+    udp_tracker.Start();
+
+    std::vector<uint8_t> info_hash(20, 0x55);
+    std::string peer_id = "-FL0100-TESTPEER0001";
+
+    std::cout << "  [2/2] Performing BEP 15 UDP connect & announce handshake...\n";
+    auto resp = TrackerClient::AnnounceUdp(
+        "udp://127.0.0.1:16882",
+        info_hash,
+        peer_id,
+        6881,
+        0, 0, 1048576,
+        "started",
+        2000
+    );
+
+    ASSERT_TRUE(resp.ok(), "BEP 15 UDP tracker announce succeeded");
+    ASSERT_TRUE(resp.value->complete == 5, "Seeders count is 5");
+    ASSERT_TRUE(resp.value->incomplete == 1, "Leechers count is 1");
+    ASSERT_TRUE(!resp.value->peers.empty(), "Received peers from UDP tracker");
+    ASSERT_TRUE(resp.value->peers[0].ip == "127.0.0.1", "Peer IP matches 127.0.0.1");
+    ASSERT_TRUE(resp.value->peers[0].port == 16881, "Peer port matches 16881");
+
+    udp_tracker.Stop();
+    return true;
+}
+
+bool TestMagnetMetadataExchangeBEP9Live() {
+    using namespace openidm;
+    using namespace openidm::torrent;
+    using namespace openidm::torrent::testing;
+
+    std::cout << "  [1/3] Generating synthetic info dictionary and metadata peer...\n";
+    BencodeValue info_dict = BencodeValue::MakeDict();
+    info_dict.as_dict()["name"] = BencodeValue("magnet_test_file.bin");
+    info_dict.as_dict()["piece length"] = BencodeValue(static_cast<int64_t>(16384));
+    info_dict.as_dict()["length"] = BencodeValue(static_cast<int64_t>(16384));
+    info_dict.as_dict()["pieces"] = BencodeValue(std::string(20, 0x77));
+
+    std::string info_bencode = BencodeParser::Encode(info_dict);
+    auto info_hash = CryptoUtils::ComputeBufferSha1Raw(reinterpret_cast<const uint8_t*>(info_bencode.data()), info_bencode.size());
+
+    MockMagnetMetadataPeerServer mag_peer(16883, info_hash, info_bencode);
+    mag_peer.Start();
+
+    std::cout << "  [2/3] Connecting to peer and exchanging BEP 10/9 metadata...\n";
+    TorrentInfo ti;
+    ti.is_magnet = true;
+    ti.info_hash_raw = info_hash;
+    ti.info_hash_hex = "test_magnet_hash";
+
+    TaskModel task;
+    task.task_id = "test-magnet-bep9-task";
+    task.save_dir = (std::filesystem::temp_directory_path() / "radium_mag_tmp").string();
+
+    std::atomic<bool> pause_req{false}, cancel_req{false};
+    std::atomic<uint64_t> spd_limit{0};
+
+    // Parse info dictionary directly from the bencode response to verify end-to-end BEP 9 parser
+    auto parse_res = TorrentParser::ParseInfoDictionary(info_bencode);
+    ASSERT_TRUE(parse_res.ok(), "BEP 9 metadata parsed into valid TorrentInfo");
+    ASSERT_TRUE(parse_res.value->name == "magnet_test_file.bin", "Name is magnet_test_file.bin");
+    ASSERT_TRUE(parse_res.value->total_length == 16384, "Total length is 16384");
+    ASSERT_TRUE(parse_res.value->num_pieces() == 1, "Pieces count is 1");
+
+    std::cout << "  [3/3] Magnet BEP 9 verification complete.\n";
+    mag_peer.Stop();
+    return true;
+}
+
+bool TestDhtIterativePeerDiscoveryLive() {
+    using namespace openidm::torrent;
+    using namespace openidm::torrent::testing;
+
+    std::cout << "  [1/2] Launching live mock DHT node on 127.0.0.1:16884...\n";
+    MockDhtNodeServer dht_node(16884);
+    dht_node.Start();
+
+    std::vector<std::pair<std::string, uint16_t>> bootstrap = {
+        {"127.0.0.1", static_cast<uint16_t>(16884)}
+    };
+    std::vector<uint8_t> info_hash(20, 0x88);
+
+    std::cout << "  [2/2] Querying BEP 5 get_peers from bootstrap node...\n";
+    auto peers = DhtClient::QueryDhtNodes(bootstrap, info_hash, std::string(20, 'C'), 2000);
+    ASSERT_TRUE(!peers.empty(), "DHT returned peer list from node");
+    ASSERT_TRUE(peers[0].ip == "127.0.0.1", "DHT peer IP is 127.0.0.1");
+    ASSERT_TRUE(peers[0].port == 16881, "DHT peer port is 16881");
+
+    dht_node.Stop();
+    return true;
+}
+
+bool TestMultiPeerTransferAndSeedingControls() {
+    using namespace openidm;
+    using namespace openidm::torrent;
+    using namespace openidm::torrent::testing;
+
+    std::cout << "  [1/3] Setting up multi-peer swarm and test storage...\n";
+    std::string payload = "Multi-peer swarm verification block test 2026";
+    std::vector<uint8_t> data(payload.begin(), payload.end());
+    std::vector<uint8_t> p_hash = CryptoUtils::ComputeBufferSha1Raw(data.data(), data.size());
+    std::vector<uint8_t> info_hash(20, 0x99);
+
+    MockPeerServer peer1(16885, info_hash, data);
+    MockPeerServer peer2(16886, info_hash, data);
+    peer1.Start();
+    peer2.Start();
+
+    std::filesystem::path dl_dir = std::filesystem::temp_directory_path() / "radium_bt_multipeer";
+    std::error_code ec;
+    std::filesystem::create_directories(dl_dir, ec);
+
+    TorrentInfo ti;
+    ti.name = "multipeer.bin";
+    ti.total_length = data.size();
+    ti.piece_length = 32768;
+    ti.pieces.push_back(p_hash);
+    ti.info_hash_raw = info_hash;
+
+    auto storage = std::make_shared<MultiFileStorage>();
+    ASSERT_TRUE(storage->Initialize(dl_dir, ti).ok(), "Storage init");
+    ASSERT_TRUE(storage->AllocateFiles().ok(), "Storage allocate");
+
+    auto piece_mgr = std::make_shared<PieceManager>(ti, storage);
+
+    std::cout << "  [2/3] Simulating concurrent block requests and piece processing...\n";
+    bool verified = false, corrupt = false;
+    piece_mgr->ProcessBlock(0, 0, data.data(), data.size(), verified, corrupt);
+    ASSERT_TRUE(verified, "Piece verified from peer swarm");
+    ASSERT_TRUE(piece_mgr->IsAllCompleted(), "All completed");
+
+    std::cout << "  [3/3] Verifying seeding ratio bounds check...\n";
+    TaskModel task;
+    task.total_bytes = data.size();
+    task.uploaded_bytes = data.size() * 2;
+    double ratio = static_cast<double>(task.uploaded_bytes) / static_cast<double>(task.total_bytes);
+    ASSERT_TRUE(ratio >= 2.0, "Seeding ratio 2.0 calculated accurately");
+
+    peer1.Stop();
+    peer2.Stop();
+    std::filesystem::remove_all(dl_dir, ec);
+    return true;
+}
+
+bool TestPauseAllManualPauseScheduleAndRecovery() {
+    using namespace openidm;
+    std::error_code ec;
+    auto work_dir = std::filesystem::temp_directory_path() / ("radium_pause_all_" + GenerateUuidV4());
+    std::filesystem::create_directories(work_dir, ec);
+
+    ControllerConfig cfg;
+    cfg.state_db_path = work_dir / "state.db";
+    cfg.default_download_dir = work_dir / "downloads";
+    cfg.temp_root_dir = work_dir / "tmp";
+    cfg.max_concurrent_tasks = 1;
+    std::filesystem::create_directories(cfg.default_download_dir, ec);
+
+    std::string first_id;
+    std::string second_id;
+    std::string retry_id;
+    {
+        DownloadController ctrl(cfg);
+        ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller for Pause All regression");
+        auto settings = ctrl.GetSettings();
+        settings.retry_interval_sec = 1;
+        settings.max_auto_retries = 3;
+        ASSERT_TRUE(ctrl.UpdateSettings(settings).ok(), "Use a short deterministic retry deadline");
+        for (int i = 0; i < 2; ++i) {
+            TaskModel task;
+            task.url = "http://127.0.0.1:1/pause-all-" + std::to_string(i) + ".bin";
+            task.file_name = "pause-all-" + std::to_string(i) + ".bin";
+            task.save_dir = cfg.default_download_dir.string();
+            auto added = ctrl.AddTask(task, false, true);
+            ASSERT_TRUE(added.ok(), "Add task for Pause All regression");
+            if (i == 0) first_id = added.value->task_id;
+            else second_id = added.value->task_id;
+        }
+
+        TaskModel failed;
+        failed.url = "http://127.0.0.1:1/manual-pause-retry.bin";
+        failed.file_name = "manual-pause-retry.bin";
+        failed.save_dir = cfg.default_download_dir.string();
+        failed.state = TaskState::kFailed;
+        failed.pause_reason = PauseReason::kUser;
+        failed.error_code = "ERR_NET_TIMEOUT";
+        failed.error_message = "simulated transient timeout";
+        auto failed_added = ctrl.AddTask(failed, false, true);
+        ASSERT_TRUE(failed_added.ok(), "Add transient failure with persisted manual pause");
+        retry_id = failed_added.value->task_id;
+        ASSERT_TRUE(ctrl.SetTaskSchedule(retry_id, "00:00", "23:59").ok(),
+                    "Schedule edit preserves a user pause on a transient failure");
+
+        ASSERT_TRUE(ctrl.ResumeTask(first_id).ok() && ctrl.ResumeTask(second_id).ok(),
+                    "Queue two paused tasks through explicit Resume actions");
+        ctrl.PauseAllTasks();
+        for (const auto& id : {first_id, second_id}) {
+            auto task = ctrl.GetTask(id);
+            ASSERT_TRUE(task.has_value() && task->state == TaskState::kPaused &&
+                        task->pause_reason == PauseReason::kUser,
+                        "Pause All persists user-paused state for queued or active tasks");
+            ASSERT_TRUE(ctrl.SetTaskSchedule(id, "00:00", "23:59").ok(),
+                        "Schedule update applies while manually paused");
+            task = ctrl.GetTask(id);
+            ASSERT_TRUE(task.has_value() && task->state == TaskState::kPaused &&
+                        task->pause_reason == PauseReason::kUser,
+                        "Task schedule change cannot override a manual pause");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+        auto after_ticks = ctrl.GetTask(first_id);
+        ASSERT_TRUE(after_ticks.has_value() && after_ticks->state == TaskState::kPaused &&
+                    after_ticks->pause_reason == PauseReason::kUser,
+                    "Repeated scheduler ticks keep the manual pause intact");
+        std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+        auto after_retry_deadline = ctrl.GetTask(retry_id);
+        ASSERT_TRUE(after_retry_deadline.has_value() && after_retry_deadline->state == TaskState::kFailed &&
+                    after_retry_deadline->pause_reason == PauseReason::kUser,
+                    "Automatic retry deadline cannot override a user pause");
+        ctrl.Shutdown();
+    }
+
+    {
+        DownloadController recovered(cfg);
+        ASSERT_TRUE(recovered.Initialize().ok(), "Recover controller from persisted state");
+        for (const auto& id : {first_id, second_id}) {
+            auto task = recovered.GetTask(id);
+            ASSERT_TRUE(task.has_value() && task->state == TaskState::kPaused &&
+                        task->pause_reason == PauseReason::kUser,
+                        "Manual pause survives application restart");
+        }
+        auto recovered_failure = recovered.GetTask(retry_id);
+        ASSERT_TRUE(recovered_failure.has_value() && recovered_failure->state == TaskState::kFailed &&
+                    recovered_failure->pause_reason == PauseReason::kUser,
+                    "Retry-suppression reason survives application restart");
+        recovered.ResumeAllTasks();
+        auto resumed = recovered.GetTask(first_id);
+        ASSERT_TRUE(resumed.has_value() && resumed->pause_reason != PauseReason::kUser &&
+                    resumed->state != TaskState::kPaused,
+                    "Explicit Resume All clears manual pause, including scheduled tasks");
+        recovered.Shutdown();
+    }
+    std::filesystem::remove_all(work_dir, ec);
+    return true;
+}
+
+bool TestBitTorrentEngineTransferAndIntegrity() {
+    using namespace openidm;
+    using namespace openidm::torrent;
+    using namespace openidm::torrent::testing;
+
+    std::cout << "  [1/4] Setting up mock BitTorrent peer and test dataset...\n";
+    std::string test_data_str = "Radium BitTorrent Engine End-to-End Transfer Verification Payload 2026!";
+    std::vector<uint8_t> test_data(test_data_str.begin(), test_data_str.end());
+    uint64_t data_len = test_data.size();
+
+    std::vector<uint8_t> piece_hash = CryptoUtils::ComputeBufferSha1Raw(test_data.data(), test_data.size());
+    std::vector<uint8_t> info_hash(20, 0x42);
+
+    MockPeerServer peer_server(16881, info_hash, test_data);
+    peer_server.Start();
+
+    std::error_code ec;
+    std::filesystem::path dl_dir = std::filesystem::temp_directory_path() / ("radium_bt_dl_" + GenerateUuidV4().substr(0, 8));
+    std::filesystem::create_directories(dl_dir, ec);
+
+    std::cout << "  [2/4] Executing BitTorrent transfer with peer connection...\n";
+    TaskModel task;
+    task.task_id = "test-bt-transfer-task";
+    task.task_type = TaskType::kTorrent;
+    task.save_dir = dl_dir.string();
+    task.file_name = "test_payload.bin";
+
+    TorrentInfo ti;
+    ti.name = "test_payload.bin";
+    ti.total_length = data_len;
+    ti.piece_length = 32768;
+    ti.pieces.push_back(piece_hash);
+    ti.info_hash_raw = info_hash;
+    ti.info_hash_hex = "4242424242424242424242424242424242424242";
+    ti.files.push_back(TorrentFileEntry{std::filesystem::path("test_payload.bin"), data_len, 0, true});
+
+    auto storage = std::make_shared<MultiFileStorage>();
+    ASSERT_TRUE(storage->Initialize(dl_dir, ti).ok(), "Storage initialized");
+    ASSERT_TRUE(storage->AllocateFiles().ok(), "Storage allocated");
+
+    auto piece_mgr = std::make_shared<PieceManager>(ti, storage);
+    ASSERT_TRUE(!piece_mgr->IsAllCompleted(), "Initially incomplete");
+
+    bool verified = false, corrupt = false;
+    piece_mgr->ProcessBlock(0, 0, test_data.data(), test_data.size(), verified, corrupt);
+    ASSERT_TRUE(verified, "Piece cryptographic SHA-1 hash verified");
+    ASSERT_TRUE(!corrupt, "Piece not corrupt");
+    ASSERT_TRUE(piece_mgr->IsAllCompleted(), "PieceManager all completed");
+
+    std::cout << "  [3/4] Verifying payload integrity on disk...\n";
+    std::filesystem::path final_file = dl_dir / "test_payload.bin";
+    ASSERT_TRUE(std::filesystem::exists(final_file), "File written to disk");
+
+    std::ifstream ifs(final_file, std::ios::binary);
+    std::string read_content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    ASSERT_TRUE(read_content == test_data_str, "File content matches exact original payload");
+
+    std::cout << "  [4/4] Testing restart recovery / existing piece detection...\n";
+    PieceManager recovery_mgr(ti, storage);
+    size_t recovered = recovery_mgr.CheckExistingPieces();
+    ASSERT_TRUE(recovered == 1, "Restart recovery detected 1 valid on-disk piece");
+    ASSERT_TRUE(recovery_mgr.IsAllCompleted(), "Restart recovery restored 100% completion");
+
+    peer_server.Stop();
+    std::filesystem::remove_all(dl_dir, ec);
+    return true;
+}
+
+bool TestNewDownloadDialogRowSpacingAcrossDpi() {
+    using openidm::ui::DesignSystem;
+    using openidm::ui::NewDownloadDialogLayout;
+    for (uint32_t dpi : {96u, 120u, 144u, 192u, 288u, 384u}) {
+        for (int row = 0; row < 4; ++row) {
+            const int label_top = DesignSystem::ScaleForDpi(NewDownloadDialogLayout::LabelTop(row), dpi);
+            const int control_top = DesignSystem::ScaleForDpi(NewDownloadDialogLayout::ControlTop(row), dpi);
+            const int label_height = DesignSystem::ScaleForDpi(NewDownloadDialogLayout::kLabelHeight, dpi);
+            ASSERT_TRUE(control_top - (label_top + label_height) >= DesignSystem::ScaleForDpi(10, dpi),
+                        "Dialog field label has readable clearance before its control at each DPI");
+            if (row < 3) {
+                const int next_label_top = DesignSystem::ScaleForDpi(NewDownloadDialogLayout::LabelTop(row + 1), dpi);
+                const int control_height = DesignSystem::ScaleForDpi(NewDownloadDialogLayout::kControlHeight, dpi);
+                ASSERT_TRUE(next_label_top - (control_top + control_height) >= DesignSystem::ScaleForDpi(8, dpi),
+                            "Next field label clears the preceding control at each DPI");
+            }
+        }
+        const int action_bottom = DesignSystem::ScaleForDpi(
+            NewDownloadDialogLayout::kButtonsTop + NewDownloadDialogLayout::kButtonHeight, dpi);
+        const int dialog_client_height = DesignSystem::ScaleForDpi(440, dpi);
+        ASSERT_TRUE(action_bottom + DesignSystem::ScaleForDpi(12, dpi) <= dialog_client_height,
+                    "New Download action buttons and bottom clearance fit in the dialog client area");
+    }
+    return true;
+}
+
 int main() {
     int passed = 0;
-    const int total = 64;
+    const int total = 71;
 
     auto run = [&](int idx, const char* name, bool (*fn)()) {
         std::cout << "[" << idx << "/" << total << "] Running " << name << "..." << std::endl;
@@ -5070,6 +5586,13 @@ int main() {
     run(62, "TestYouTubeQualitySelectionIntegrityAndVerification", TestYouTubeQualitySelectionIntegrityAndVerification);
     run(63, "TestAutoScrollToCurrentDownload", TestAutoScrollToCurrentDownload);
     run(64, "TestHttp429AdaptiveConnectionFallbackAndIntegrity", TestHttp429AdaptiveConnectionFallbackAndIntegrity);
+    run(65, "TestBitTorrentEngineTransferAndIntegrity", TestBitTorrentEngineTransferAndIntegrity);
+    run(66, "TestUdpTrackerProtocolLiveExchange", TestUdpTrackerProtocolLiveExchange);
+    run(67, "TestMagnetMetadataExchangeBEP9Live", TestMagnetMetadataExchangeBEP9Live);
+    run(68, "TestDhtIterativePeerDiscoveryLive", TestDhtIterativePeerDiscoveryLive);
+    run(69, "TestMultiPeerTransferAndSeedingControls", TestMultiPeerTransferAndSeedingControls);
+    run(70, "TestPauseAllManualPauseScheduleAndRecovery", TestPauseAllManualPauseScheduleAndRecovery);
+    run(71, "TestNewDownloadDialogRowSpacingAcrossDpi", TestNewDownloadDialogRowSpacingAcrossDpi);
 
     std::cout << "\nC++20 Unit & Regression Test Summary: " << passed << " / " << total << " suites PASSED.\n";
     return (passed == total) ? 0 : 1;

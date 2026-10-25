@@ -31,6 +31,19 @@ struct BencodeValue {
     BencodeValue(BencodeList val) : type(Type::kList), data(std::move(val)) {}
     BencodeValue(BencodeDict val) : type(Type::kDict), data(std::move(val)) {}
 
+    static BencodeValue MakeDict() {
+        BencodeValue v;
+        v.type = Type::kDict;
+        v.data = BencodeDict();
+        return v;
+    }
+    static BencodeValue MakeList() {
+        BencodeValue v;
+        v.type = Type::kList;
+        v.data = BencodeList();
+        return v;
+    }
+
     bool is_int() const { return type == Type::kInteger; }
     bool is_string() const { return type == Type::kString; }
     bool is_list() const { return type == Type::kList; }
@@ -47,9 +60,26 @@ struct BencodeValue {
         static const BencodeList empty;
         return is_list() ? std::get<BencodeList>(data) : empty;
     }
+    BencodeList& as_list() {
+        if (!is_list()) {
+            type = Type::kList;
+            data = BencodeList();
+        }
+        return std::get<BencodeList>(data);
+    }
     const BencodeDict& as_dict() const {
         static const BencodeDict empty;
         return is_dict() ? std::get<BencodeDict>(data) : empty;
+    }
+    BencodeDict& as_dict() {
+        if (!is_dict()) {
+            type = Type::kDict;
+            data = BencodeDict();
+        }
+        return std::get<BencodeDict>(data);
+    }
+    BencodeValue& operator[](const std::string& key) {
+        return as_dict()[key];
     }
 
     bool contains(const std::string& key) const {

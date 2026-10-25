@@ -24,8 +24,11 @@ const {
   onBeforeSendHeadersHandler,
   onHeadersReceivedHandler,
   onDownloadCreatedHandler,
+  probeMediaSize,
+  submitMediaCandidateToFlux,
   submitMediaCandidateToOpenIDM,
   handleRuntimeMessage,
+  updateTabDocument,
   downloadStateMachine
 } = require("../extension/js/background.js");
 const {
@@ -185,12 +188,13 @@ async function runTests() {
   const obsResult = observeDynamicVideosAndFullscreen(fakeDoc, null, (payload) => { clickedVideoPayload = payload; });
   assert.strictEqual(obsResult.activeOverlays.length, 1, "Overlay attached to visible <video>");
   assert.strictEqual(obsResult.activeOverlays[0].hostEl.shadowMode, "closed", "Uses closed Shadow DOM");
-  assert(obsResult.activeOverlays[0].hostEl.style.cssText.includes("top:50px"), "Positioned at top-right of video");
+  assert(obsResult.activeOverlays[0].hostEl.style.cssText.includes("top:8px"), "Player toolbar stays above the image with viewport padding");
+  assert(obsResult.activeOverlays[0].hostEl.style.cssText.includes("left:50px"), "Player toolbar aligns to the player left edge");
 
   // Simulate entering fullscreen (1920x1080 at 0,0) and verify overlay repositions
   videoRect = { width: 1920, height: 1080, top: 0, left: 0, right: 1920 };
   fullscreenHandler();
-  assert(obsResult.activeOverlays[0].hostEl.style.cssText.includes("left:1752px"), "Overlay repositioned on fullscreenchange");
+  assert(obsResult.activeOverlays[0].hostEl.style.cssText.includes("left:8px"), "Toolbar remains within the viewport when fullscreen starts at the screen edge");
 
   assert.strictEqual(obsResult.activeOverlays[0].btn.textContent, "Download with Radium", "Overlay button text rebranded to Radium");
   obsResult.activeOverlays[0].btn._clickHandler({ stopPropagation: () => {}, preventDefault: () => {} });
@@ -1024,8 +1028,70 @@ async function runTests() {
   assert.ok(postRefreshHtml.includes('value="720p" selected'), "Rendered dropdown keeps 720p selected after refresh");
   console.log("  -> PASS");
 
+  console.log("\n[17/17] Testing Per-Tab SPA Document Scoping and Compact Player Toolbar...");
+  G.cacheData.set(901, [{ candidateId: "old-page", url: "https://media.example/old.mp4" }]);
+  G.cacheData.set(902, [{ candidateId: "other-tab", url: "https://media.example/other.mp4" }]);
+  G.tabUrlMap.set(901, "https://site.example/page/1");
+  G.tabUrlMap.set(902, "https://site.example/background");
+  assert.strictEqual(updateTabDocument(901, "https://site.example/page/2"), true, "SPA history transition updates document identity");
+  assert.strictEqual(G.cacheData.has(901), false, "Old document candidates are cleared for the navigated tab");
+  assert.strictEqual(G.cacheData.get(902)[0].candidateId, "other-tab", "Unrelated background tab results are retained");
+  G.cacheData.set(901, [{ candidateId: "current-page", url: "https://media.example/current.mp4" }]);
+  assert.strictEqual(updateTabDocument(901, "https://site.example/page/2"), false, "Same document refresh keeps all current page results");
+  assert.strictEqual(G.cacheData.get(901).length, 1, "Current document candidates remain available");
+
+  const toolbarHost = { style: {} };
+  positionOverlayHost({ getBoundingClientRect: () => ({ width: 640, height: 360, top: 200, bottom: 560, left: 100, right: 740 }) }, toolbarHost);
+  assert.ok(toolbarHost.style.cssText.includes("top:166px"), "Player toolbar is positioned above the video image");
+  assert.ok(toolbarHost.style.cssText.includes("left:100px"), "Player toolbar aligns with the player container");
+  const contentScript = fs.readFileSync(path.join(__dirname, "../extension/js/content-script.js"), "utf8");
+  assert.ok(contentScript.includes("padding:4px 9px") && contentScript.includes("font:600 11px"), "Player download control uses compact styling");
+  console.log("  -> PASS");
+
+  console.log("\n[18/18] Testing Bounded Media Size Probe and Numeric Filename Extension...");
+  const sizeCandidate = {
+    candidateId: "size-probe-candidate",
+    url: "https://media.example/video?id=9755",
+    sourceType: "DIRECT_PROGRESSIVE",
+    streamType: "HTTP_FILE",
+    size: 0,
+    tabUrl: "https://site.example/watch"
+  };
+  G.cacheData.set(903, [sizeCandidate]);
+  let rangeBodyCanceled = false;
+  const probeCalls = [];
+  const discoveredSize = await probeMediaSize(903, sizeCandidate, async (_url, options) => {
+    probeCalls.push(options);
+    if (options.method === "HEAD") return { ok: false, headers: { get: () => "" } };
+    return {
+      ok: true,
+      headers: { get: (name) => name === "content-range" ? "bytes 0-0/1234567" : "1" },
+      body: { cancel: async () => { rangeBodyCanceled = true; } }
+    };
+  });
+  assert.strictEqual(discoveredSize, 1234567, "Range Content-Range supplies representation size when HEAD is unavailable");
+  assert.strictEqual(sizeCandidate.size, 1234567, "Resolved size updates the current page candidate");
+  assert.strictEqual(probeCalls[1].headers.Range, "bytes=0-0", "Fallback reads only the first byte range");
+  assert.strictEqual(rangeBodyCanceled, true, "Range response body is canceled without downloading the media");
+
+  let submittedParams = null;
+  await submitMediaCandidateToFlux({
+    candidateId: "numeric-name",
+    url: "https://media.example/9755",
+    fileName: "9755",
+    ext: "mp4",
+    mime: "video/mp4",
+    sourceType: "DIRECT_PROGRESSIVE",
+    streamType: "HTTP_FILE"
+  }, { pageTitle: "Lecture" }, async (payload) => {
+    submittedParams = payload.params;
+    return { accepted: true, taskId: "numeric-name-task" };
+  });
+  assert.strictEqual(submittedParams.fileName, "9755.mp4", "Numeric server filename receives MIME-derived media extension");
+  console.log("  -> PASS");
+
   console.log("\n=======================================================");
-  console.log("Browser Extension Suite: 16/16 suites (26/26 edge scenarios) PASSED.");
+  console.log("Browser Extension Suite: 18/18 suites (26/26 edge scenarios) PASSED.");
   console.log("=======================================================");
   process.exit(0);
 }

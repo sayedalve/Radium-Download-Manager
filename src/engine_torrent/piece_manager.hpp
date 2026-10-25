@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include "common/crypto_utils.hpp"
@@ -41,25 +42,104 @@ public:
           m_total_pieces(info.num_pieces()),
           m_total_bytes(info.total_length) {
         m_have_pieces.assign(m_total_pieces, false);
+        for (size_t p = 0; p < m_total_pieces; ++p) {
+            if (info.piece_required(p)) m_required_pieces.push_back(p);
+            m_total_selected_bytes += info.selected_bytes_in_piece(p);
+        }
     }
 
-    size_t TotalPieces() const { return m_total_pieces; }
-    size_t CompletedPieces() const { return m_completed_pieces; }
-    uint64_t DownloadedBytes() const { return m_downloaded_bytes; }
-    uint64_t TotalBytes() const { return m_total_bytes; }
-    bool IsAllCompleted() const { return m_completed_pieces >= m_total_pieces; }
-    const std::vector<bool>& HavePieces() const { return m_have_pieces; }
+    size_t TotalPieces() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_total_pieces;
+    }
+
+    size_t RequiredPieces() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_required_pieces.size();
+    }
+
+    size_t CompletedPieces() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_completed_pieces;
+    }
+
+    uint64_t DownloadedBytes() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_downloaded_bytes;
+    }
+
+    // UI progress includes blocks received for pieces that are still being
+    // assembled and verified. Only DownloadedBytes() is resumable progress.
+    uint64_t ReceivedBytes() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        uint64_t received_bytes = m_downloaded_bytes;
+        for (const auto& [piece_index, piece] : m_active_pieces) {
+            const uint64_t selected_bytes = m_info.selected_bytes_in_piece(piece_index);
+            if (selected_bytes == 0 || piece.piece_size == 0) continue;
+
+            uint64_t piece_received = 0;
+            for (size_t block_index = 0; block_index < piece.blocks_received.size(); ++block_index) {
+                if (!piece.blocks_received[block_index]) continue;
+                const uint64_t block_offset = block_index * kBlockLength;
+                piece_received += std::min<uint64_t>(kBlockLength, piece.piece_size - block_offset);
+            }
+            received_bytes += (selected_bytes * piece_received) / piece.piece_size;
+        }
+        return std::min(received_bytes, m_total_selected_bytes);
+    }
+
+    uint64_t TotalBytes() const {
+        return m_total_bytes;
+    }
+
+    bool IsAllCompleted() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_completed_pieces >= m_required_pieces.size();
+    }
+
+    std::vector<bool> HavePieces() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_have_pieces;
+    }
 
     uint64_t GetPieceSize(size_t piece_index) const {
         return m_info.get_piece_size(piece_index);
+    }
+
+    // Checks on-disk pieces to resume without re-downloading existing valid pieces
+    size_t CheckExistingPieces() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_storage) return 0;
+
+        size_t recovered = 0;
+        std::vector<uint8_t> piece_buf;
+        for (size_t p : m_required_pieces) {
+            if (m_have_pieces[p]) continue;
+            uint64_t p_sz = GetPieceSize(p);
+            if (p_sz == 0) continue;
+            if (piece_buf.size() < p_sz) piece_buf.resize(static_cast<size_t>(p_sz));
+
+            uint64_t torrent_offset = static_cast<uint64_t>(p) * m_info.piece_length;
+            auto r_res = m_storage->ReadBytes(torrent_offset, piece_buf.data(), static_cast<size_t>(p_sz));
+            if (r_res.ok() && p < m_info.pieces.size()) {
+                if (TorrentParser::VerifyPiece(piece_buf.data(), static_cast<size_t>(p_sz), m_info.pieces[p])) {
+                    m_have_pieces[p] = true;
+                    m_completed_pieces++;
+                    m_downloaded_bytes += m_info.selected_bytes_in_piece(p);
+                    recovered++;
+                }
+            }
+        }
+        return recovered;
     }
 
     // Direct adoption of aria2 Piece::getMissingUnusedBlockIndex
     std::vector<BlockRequest> GetNextRequestsForPeer(
         const std::vector<bool>& peer_have,
         size_t max_requests = kDefaultMaxOutstandingRequests) {
+        std::lock_guard<std::mutex> lock(m_mutex);
         std::vector<BlockRequest> requests;
-        if (IsAllCompleted() || max_requests == 0) return requests;
+        if (m_completed_pieces >= m_required_pieces.size() || max_requests == 0) return requests;
 
         // 1. First priority: complete existing in-flight active pieces
         for (auto& [piece_idx, inc] : m_active_pieces) {
@@ -77,7 +157,8 @@ public:
         }
 
         // 2. Second priority: activate new missing pieces present on peer
-        for (size_t p = 0; p < m_total_pieces && requests.size() < max_requests; ++p) {
+        for (size_t p : m_required_pieces) {
+            if (requests.size() >= max_requests) break;
             if (!m_have_pieces[p] && m_active_pieces.find(static_cast<uint32_t>(p)) == m_active_pieces.end()) {
                 if (p < peer_have.size() && peer_have[p]) {
                     uint32_t p_u32 = static_cast<uint32_t>(p);
@@ -118,6 +199,7 @@ public:
         size_t block_len,
         bool& out_piece_verified,
         bool& out_piece_corrupt) {
+        std::lock_guard<std::mutex> lock(m_mutex);
         out_piece_verified = false;
         out_piece_corrupt = false;
 
@@ -126,7 +208,6 @@ public:
 
         auto it = m_active_pieces.find(piece_index);
         if (it == m_active_pieces.end()) {
-            // Unsolicited block for inactive piece; initialize piece
             uint64_t p_sz = GetPieceSize(piece_index);
             if (p_sz == 0 || begin + block_len > p_sz) return false;
 
@@ -173,7 +254,7 @@ public:
                 }
                 m_have_pieces[piece_index] = true;
                 m_completed_pieces++;
-                m_downloaded_bytes += inc.piece_size;
+                m_downloaded_bytes += m_info.selected_bytes_in_piece(piece_index);
                 m_active_pieces.erase(it);
                 out_piece_verified = true;
                 return true;
@@ -191,6 +272,7 @@ public:
     }
 
     void CancelInFlightRequests(const std::vector<BlockRequest>& requests) {
+        std::lock_guard<std::mutex> lock(m_mutex);
         for (const auto& req : requests) {
             auto it = m_active_pieces.find(req.piece_index);
             if (it != m_active_pieces.end()) {
@@ -203,12 +285,15 @@ public:
     }
 
 private:
+    mutable std::mutex m_mutex;
     TorrentInfo m_info;
     std::shared_ptr<MultiFileStorage> m_storage;
     size_t m_total_pieces{0};
     size_t m_completed_pieces{0};
     uint64_t m_downloaded_bytes{0};
     uint64_t m_total_bytes{0};
+    uint64_t m_total_selected_bytes{0};
+    std::vector<size_t> m_required_pieces;
 
     std::vector<bool> m_have_pieces;
     std::map<uint32_t, IncompletePiece> m_active_pieces;

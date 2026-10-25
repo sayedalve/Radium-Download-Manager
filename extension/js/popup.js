@@ -129,9 +129,11 @@ function renderDetectedMediaList(candidates, options = {}) {
     const effSize = activeQuality ? (activeQuality.size || item.size || 0) : (item.size || 0);
     const effEstimated = activeQuality ? Boolean(activeQuality.sizeEstimated) : false;
     const szPrefix = effEstimated ? " &middot; ~" : " &middot; ";
+    const unknownSizeLabel = item.sizeStatus === "checking" ? "Checking size…" : "Size unknown";
+    const sizeLabel = effSize > 0 ? (effEstimated ? "~" : "") + formatMediaSize(effSize) : unknownSizeLabel;
     const qualityTag = item.resolution
-      ? `<span class="meta-mono">${escapeHtml(item.resolution)}${effSize > 0 ? szPrefix + formatMediaSize(effSize) : ""}</span>`
-      : `<span class="meta-mono">${effSize > 0 ? (effEstimated ? "~" : "") + formatMediaSize(effSize) : ""}</span>`;
+      ? `<span class="meta-mono">${escapeHtml(item.resolution)}${szPrefix}${escapeHtml(sizeLabel)}</span>`
+      : `<span class="meta-mono">${escapeHtml(sizeLabel)}</span>`;
     const variantNote = (item.variants && item.variants.length > 0)
       ? `<span class="item-variants">(+${item.variants.length} sub-playlists grouped)</span>`
       : "";

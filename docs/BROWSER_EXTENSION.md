@@ -171,3 +171,20 @@ To minimize security risk and pass Chrome Web Store / Firefox AMO review without
    20. Failed browser cancellation attempt recovery (handoff preserved).
    21. Service worker suspension and wake-up session state restore.
    22. Concurrent media sniffer detection and file download handoff.
+
+## Current-page media and compact video control update
+
+Chromium uses `webNavigation.onHistoryStateUpdated` and `onReferenceFragmentUpdated` to clear media candidates when the main-frame document identity changes through SPA or fragment navigation. Full navigations and popup requests use the same per-tab identity check. Unrelated tabs retain their own candidate lists. The player control is aligned to the video container and positioned above its top edge with compact styling. Automated coverage exercises per-tab clearing and toolbar geometry; live Brave behavior still requires browser verification.
+
+### Bounded direct-media size lookup
+
+When a direct progressive media response has no trustworthy size, the service worker performs one per-URL lookup: an authenticated-cookie `HEAD` request followed, only when needed, by a `Range: bytes=0-0` request. The range body is canceled immediately; an unknown result is shown as “Checking size…” or “Size unknown”. The probe has a five-minute per-candidate retry guard and only updates a candidate still present in that tab's current list. The deterministic test covers HEAD failure, Content-Range total extraction, and body cancellation. Browser-specific authorization and server behavior remain environment-dependent.
+
+### Stable installation diagnostics
+
+Chromium extension identity is pinned by the public key in `manifest.chromium.json` / `manifest.json`. The Windows build cleans the C++ build directory and copies extension assets into `dist/extension`; it does not delete the source extension directory. Native Messaging registration is tied to the installed application directory. An unpacked extension under an application directory can stop loading if that directory is removed or moved, and Chromium policy can disable/remove extensions independently. This repository does not silently force-install an unpacked extension.
+
+### Native host path stability
+
+The registration script prefers the staged `dist/radium-nmh.exe` with build-directory fallbacks, so a normal clean build does not invalidate the registered host. An unpacked extension can stop loading if its own path is removed or moved, and Chromium policy can disable/remove extensions independently. The audited Brave profile currently registers the unpacked source `extension/` directory with no disable reason; persistence after a browser restart or policy-driven removal was not runtime-tested.
+

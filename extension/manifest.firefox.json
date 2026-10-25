@@ -13,6 +13,7 @@
     "nativeMessaging",
     "downloads",
     "webRequest",
+    "webNavigation",
     "storage",
     "contextMenus",
     "scripting",

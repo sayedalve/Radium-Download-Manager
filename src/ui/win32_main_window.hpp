@@ -381,6 +381,8 @@ public:
     HitTestResult HitTestPoint(int x, int y, size_t scroll_offset = 0) const;
     bool HandleMouseClick(int x, int y, bool double_click = false, size_t scroll_offset = 0);
     HitTestResult HandleMouseMove(int x, int y, size_t scroll_offset = 0);
+    void ClearHoverState();
+    RectI GetRowRect(size_t row_index) const;
     const std::string& GetActiveTooltip() const { return m_active_tooltip; }
     int GetHoveredToolbarIndex() const { return m_hovered_toolbar_index; }
     int GetHoveredSidebarIndex() const { return m_hovered_sidebar_index; }
@@ -415,6 +417,9 @@ public:
     SidebarCategory GetSelectedCategory() const { return m_selected_category; }
     static std::string CategoryToLabel(SidebarCategory category);
     CategoryCounts ComputeCategoryCounts() const;
+    bool IsSidebarVisible() const { return m_sidebar_visible; }
+    void SetSidebarVisible(bool visible);
+    void ToggleSidebarVisible();
 
     void SetSearchQuery(std::string query);
     const std::string& GetSearchQuery() const { return m_search_query; }
@@ -581,6 +586,7 @@ private:
     bool m_select_all_checked{false};
     std::set<std::string> m_checked_task_ids;
     bool m_speed_limiter_active{false};
+    bool m_sidebar_visible{false};
 
     size_t m_scroll_offset{0};
     mutable std::map<std::string, TaskState> m_known_task_states;

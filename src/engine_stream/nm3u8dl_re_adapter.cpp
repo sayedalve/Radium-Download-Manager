@@ -1880,17 +1880,6 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
     }
     std::filesystem::path muxed_output = std::filesystem::path(task.save_dir) / (base_stem + ".flux_yt_mux." + fmt);
 
-    task.state = TaskState::kProbing;
-    task.status_detail = "Extracting YouTube stream metadata...";
-    if (on_progress) {
-        StreamProgress sp;
-        sp.task_id = task.task_id;
-        sp.phase = TaskState::kProbing;
-        sp.percent = 0.0;
-        sp.status_line = task.status_detail;
-        on_progress(sp);
-    }
-
     std::string watch_url = task.url;
     auto is_raw_googlevideo = [](std::string_view u) {
         return u.find("googlevideo.com") != std::string_view::npos || u.find("videoplayback") != std::string_view::npos;
@@ -1908,6 +1897,23 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
     std::string dash_manifest_url;
     bool requires_cipher = false;
     bool requires_audio_mux = false;
+    auto log_state_transition = [&](TaskState next_state, std::string_view reason, std::string_view path) {
+        OPENIDM_LOG_INFO("Nm3u8dlAdapter", "task=" + task.task_id + " state=" + TaskStateToString(task.state) +
+                         " -> " + TaskStateToString(next_state) + " reason=" + std::string(reason) +
+                         " path=" + std::string(path));
+        task.state = next_state;
+    };
+
+    log_state_transition(TaskState::kProbing, "youtube extraction started", "youtube");
+    task.status_detail = "Extracting YouTube stream metadata...";
+    if (on_progress) {
+        StreamProgress sp;
+        sp.task_id = task.task_id;
+        sp.phase = TaskState::kProbing;
+        sp.percent = 0.0;
+        sp.status_line = task.status_detail;
+        on_progress(sp);
+    }
 
     std::string req_filter = ToLowerStr(TrimView(task.stream_options.video_filter));
     bool wants_audio_only = (req_filter == "audio" || req_filter == "audio-only");
@@ -2552,9 +2558,11 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
         task.file_name = commit_res.value->filename().string();
         task.part_path.clear();
         task.stream_percent = 100.0;
-        task.state = TaskState::kCompleted;
+        log_state_transition(TaskState::kCompleted, "verified output committed", "direct");
         task.status_detail = "Completed";
         task.completed_at_ms = NowEpochMs();
+        task.error_code.clear();
+        task.error_message.clear();
         task.auth_headers.clear();
         if (on_progress) {
             StreamProgress sp;
@@ -2580,18 +2588,36 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
         if (cancel_requested.load() || pause_requested.load()) {
             return direct_res;
         }
-        OPENIDM_LOG_WARN("Nm3u8dlAdapter", "Direct stream fast-path failed (" + direct_res.error->message + "), falling back to yt-dlp worker");
+        OPENIDM_LOG_WARN("Nm3u8dlAdapter", "task=" + task.task_id + " direct path failed code=" + direct_res.error->code +
+                         " message=" + direct_res.error->message + "; falling back to yt-dlp worker");
         std::filesystem::remove(muxed_output, ec);
         std::filesystem::remove(task_tmp_dir / "yt_video.mp4", ec);
         std::filesystem::remove(task_tmp_dir / "yt_audio.m4a", ec);
+        task.error_code.clear();
+        task.error_message.clear();
+        task.downloaded_bytes = 0;
+        task.total_bytes = 0;
+        task.stream_percent = 0.0;
+        log_state_transition(TaskState::kProbing, "retrying after direct path failure", "yt-dlp");
+        task.status_detail = "Retrying with yt-dlp extraction...";
+        if (on_progress) {
+            StreamProgress sp;
+            sp.task_id = task.task_id;
+            sp.phase = TaskState::kProbing;
+            sp.percent = 0.0;
+            sp.downloaded_bytes = 0;
+            sp.total_bytes = 0;
+            sp.status_line = task.status_detail;
+            on_progress(sp);
+        }
     }
 
     // 4. If cipher extraction, YouTube host, or site extraction is required (or direct fast-path failed), use external yt-dlp worker
     std::filesystem::path ytdlp_bin = PathSanitizer::FindWorkerBinary("yt-dlp", PathSanitizer::GetExecutableDir());
     bool should_use_ytdlp = std::filesystem::exists(ytdlp_bin, ec);
     if (should_use_ytdlp) {
-        task.state = TaskState::kDownloading;
-        task.status_detail = "Extracting & downloading via yt-dlp...";
+        log_state_transition(TaskState::kProbing, "yt-dlp worker launch", "yt-dlp");
+        task.status_detail = "Extracting YouTube stream with yt-dlp...";
 
         std::filesystem::path yt_cookies_file = task_tmp_dir / "yt_cookies.txt";
         bool has_cookies = false;
@@ -2673,8 +2699,7 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
         yt_args.push_back(watch_url);
 
         // Immediate responsive status notification before process launch
-        task.state = TaskState::kProbing;
-        task.status_detail = "Connecting to YouTube...";
+        task.status_detail = "Extracting YouTube stream...";
         if (on_progress) {
             StreamProgress sp;
             sp.task_id = task.task_id;
@@ -2716,7 +2741,7 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
             // Real-time live status updates during extraction so UI never freezes on "Connecting..."
             if (line.find("Extracting URL") != std::string::npos || line.find("Downloading webpage") != std::string::npos) {
                 task.state = TaskState::kProbing;
-                task.status_detail = "Connecting to YouTube...";
+                task.status_detail = "Extracting YouTube stream...";
                 if (on_progress) {
                     StreamProgress sp;
                     sp.task_id = task.task_id;
@@ -3189,9 +3214,11 @@ Result<std::filesystem::path> Nm3u8dlReAdapter::ExecuteYouTubeExtraction(
             task.file_name = commit_res.value->filename().string();
             task.part_path.clear();
             task.stream_percent = 100.0;
-            task.state = TaskState::kCompleted;
+            log_state_transition(TaskState::kCompleted, "verified output committed", "yt-dlp");
             task.status_detail = "Completed";
             task.completed_at_ms = NowEpochMs();
+            task.error_code.clear();
+            task.error_message.clear();
             task.auth_headers.clear();
             if (on_progress) {
                 StreamProgress sp;

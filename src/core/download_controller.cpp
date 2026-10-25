@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 
 #ifdef _WIN32
@@ -84,6 +85,29 @@ std::string ExtractExtensionLower(const std::string& filename) {
     return ext;
 }
 
+std::optional<std::filesystem::path> ResolveTaskOutputPath(
+    const std::filesystem::path& save_dir,
+    const std::filesystem::path& relative_path) {
+    if (relative_path.empty() || relative_path.is_absolute() || relative_path.has_root_name() ||
+        relative_path.has_root_directory()) {
+        return std::nullopt;
+    }
+    for (const auto& component : relative_path) {
+        if (component == "..") return std::nullopt;
+    }
+
+    std::error_code ec;
+    const auto root = std::filesystem::weakly_canonical(save_dir, ec);
+    if (ec) return std::nullopt;
+    const auto target = std::filesystem::weakly_canonical(root / relative_path, ec);
+    if (ec) return std::nullopt;
+    const auto relative_target = target.lexically_relative(root);
+    if (relative_target.empty() || relative_target.is_absolute()) return std::nullopt;
+    const auto first_component = relative_target.begin();
+    if (first_component == relative_target.end() || *first_component == "..") return std::nullopt;
+    return target;
+}
+
 bool IsValidTimeFormat(const std::string& t) {
     if (t.empty()) return true;
     if (t.size() != 5 || t[2] != ':') return false;
@@ -131,6 +155,12 @@ DownloadController::DownloadController(ControllerConfig cfg)
     m_settings.default_download_dir = m_cfg.default_download_dir.string();
     m_settings.stall_timeout_ms = m_cfg.stall_timeout_ms;
     m_settings.min_split_bytes = m_cfg.min_split_bytes;
+}
+
+void DownloadController::SetTorrentMetadataSelectionCallback(
+    torrent::TorrentMetadataSelectionCallback callback) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cfg.torrent_metadata_selection_callback = std::move(callback);
 }
 
 DownloadController::~DownloadController() {
@@ -400,10 +430,10 @@ Result<TaskModel> DownloadController::AddTask(TaskModel task, bool start_immedia
         if (!ftp_res.ok()) return Result<TaskModel>::Err(ftp_res.error->code, ftp_res.error->message);
         if (task.file_name.empty()) task.file_name = ftp_res.value->file_name;
     } else if (task.url.find("magnet:?") == 0) {
-        return Result<TaskModel>::Err(
-            "ERR_TORRENT_MAGNET_METADATA",
-            "Magnet links require BEP 9 metadata exchange; please provide a .torrent file"
-        );
+        task.task_type = TaskType::kTorrent;
+        auto mag_res = torrent::TorrentParser::ParseMagnetUri(task.url);
+        if (!mag_res.ok()) return Result<TaskModel>::Err(mag_res.error->code, mag_res.error->message);
+        if (task.file_name.empty()) task.file_name = mag_res.value->name;
     } else if (task.task_type == TaskType::kTorrent || task.url.ends_with(".torrent") ||
                (std::filesystem::exists(task.url) && std::filesystem::path(task.url).extension() == ".torrent")) {
         task.task_type = TaskType::kTorrent;
@@ -412,7 +442,20 @@ Result<TaskModel> DownloadController::AddTask(TaskModel task, bool start_immedia
             auto tor_res = torrent::TorrentParser::ParseTorrentFile(task.url);
             if (!tor_res.ok()) return Result<TaskModel>::Err(tor_res.error->code, tor_res.error->message);
             if (task.file_name.empty()) task.file_name = tor_res.value->name;
-            task.total_bytes = tor_res.value->total_length;
+            task.total_bytes = task.torrent_file_paths.empty() ? tor_res.value->total_length : 0;
+            if (task.torrent_file_paths.empty()) {
+                for (const auto& file : tor_res.value->files) {
+                    task.torrent_file_paths.push_back(file.relative_path.generic_string());
+                    task.torrent_file_selection.push_back(file.selected ? 1 : 0);
+                }
+                task.total_bytes = tor_res.value->selected_bytes();
+            } else if (task.torrent_file_paths.size() == tor_res.value->files.size()) {
+                uint64_t selected_bytes = 0;
+                for (size_t i = 0; i < tor_res.value->files.size() && i < task.torrent_file_selection.size(); ++i) {
+                    selected_bytes += task.torrent_file_selection[i] ? tor_res.value->files[i].length : 0;
+                }
+                task.total_bytes = selected_bytes;
+            }
         } else {
             auto parsed_u = brisk::HttpClient::ParseUrl(task.url);
             if (!parsed_u.ok()) return Result<TaskModel>::Err(parsed_u.error->code, parsed_u.error->message);
@@ -487,7 +530,7 @@ Result<TaskModel> DownloadController::AddTask(TaskModel task, bool start_immedia
     if (task.state != TaskState::kCompleted && task.state != TaskState::kFailed && task.state != TaskState::kDownloading) {
         task.state = (start_immediately && !task.scheduled) ? TaskState::kQueued : TaskState::kPaused;
         if (task.state == TaskState::kPaused) {
-            task.pause_reason = PauseReason::kUser;
+            task.pause_reason = task.scheduled ? PauseReason::kNone : PauseReason::kUser;
         }
         task.status_detail = (task.state == TaskState::kQueued)
                                  ? "Queued"
@@ -687,16 +730,25 @@ void DownloadController::ScheduleLoop() {
         m_cv.wait_for(lock, std::chrono::milliseconds(50), [&]() { return m_stopping; });
         if (m_stopping) break;
 
+        std::vector<std::thread> finished_workers;
         for (auto it = m_active.begin(); it != m_active.end();) {
             if (it->second->finished.load()) {
                 if (it->second->worker_thread.joinable()) {
-                    it->second->worker_thread.join();
+                    finished_workers.emplace_back(std::move(it->second->worker_thread));
                 }
                 it = m_active.erase(it);
             } else {
                 ++it;
             }
         }
+
+        // Workers merge their final state under m_mutex. Joining while holding
+        // this lock deadlocks the scheduler when a worker is finishing a pause.
+        lock.unlock();
+        for (auto& worker : finished_workers) {
+            if (worker.joinable()) worker.join();
+        }
+        lock.lock();
 
         if (!m_active.empty()) {
             had_active = true;
@@ -718,7 +770,7 @@ void DownloadController::ScheduleLoop() {
             // Check scheduled start & stop time strictly on scheduled tasks
             if (t.scheduled) {
                 bool in_window = IsTimeInScheduledWindow(cur_hh_mm, t.schedule_time_local, t.schedule_stop_time_local);
-                if (t.state == TaskState::kPaused && in_window) {
+                if (t.state == TaskState::kPaused && t.pause_reason != PauseReason::kUser && in_window) {
                     t.state = TaskState::kQueued;
                     t.status_detail = "Queued (Schedule Started)";
                     if (t.schedule_stop_time_local.empty()) {
@@ -734,7 +786,7 @@ void DownloadController::ScheduleLoop() {
                             ait->second->pause_requested.store(true);
                         }
                         t.state = TaskState::kPaused;
-                        t.pause_reason = PauseReason::kUser;
+                        t.pause_reason = PauseReason::kQueueSchedule;
                         t.status_detail = "Paused (Scheduled Stop " + t.schedule_stop_time_local + ")";
                         // Cleanly expire the schedule once stop time has arrived so it never blocks manual Resume or Retry!
                         t.scheduled = false;
@@ -810,7 +862,7 @@ void DownloadController::ScheduleLoop() {
                         t.status_detail = "Retrying in " + std::to_string(delay_sec) + "s (Attempt " +
                                           std::to_string(t.retry_count + 1) + "/" + std::to_string(m_settings.max_auto_retries) + ")";
                         m_store.UpsertTask(t);
-                    } else if (now_steady >= rit->second) {
+                    } else if (now_steady >= rit->second && t.pause_reason != PauseReason::kUser) {
                         retry_schedule.erase(rit);
                         ++t.retry_count;
                         t.state = TaskState::kQueued;
@@ -1023,14 +1075,34 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
         }
     } else if (local_task.task_type == TaskType::kTorrent) {
         torrent::TorrentInfo tinfo;
+        Result<torrent::TorrentInfo> parse_res = Result<torrent::TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Torrent metainfo was not parsed");
         if (local_task.url.find("magnet:?") == 0) {
-            auto mag_res = torrent::TorrentParser::ParseMagnetUri(local_task.url);
-            if (mag_res.ok()) tinfo = mag_res.value.value();
+            parse_res = torrent::TorrentParser::ParseMagnetUri(local_task.url);
         } else {
-            auto tor_res = torrent::TorrentParser::ParseTorrentFile(local_task.url);
-            if (tor_res.ok()) tinfo = tor_res.value.value();
+            parse_res = torrent::TorrentParser::ParseTorrentFile(local_task.url);
         }
-        auto tor_dl = torrent::TorrentEngine::ExecuteTorrentDownload(
+        if (!parse_res.ok()) {
+            local_task.state = TaskState::kFailed;
+            local_task.error_code = parse_res.error->code;
+            local_task.error_message = parse_res.error->message;
+            local_task.status_detail = "Failed: " + parse_res.error->message;
+            OPENIDM_LOG_ERROR("Controller", "Torrent task " + task_id + " parse failed [" + local_task.error_code + "]: " + local_task.error_message);
+        } else {
+            tinfo = parse_res.value.value();
+            if (!local_task.torrent_file_paths.empty() && tinfo.files.size() == local_task.torrent_file_paths.size()) {
+                for (size_t i = 0; i < tinfo.files.size() && i < local_task.torrent_file_selection.size(); ++i) {
+                    if (tinfo.files[i].relative_path.generic_string() == local_task.torrent_file_paths[i]) {
+                        tinfo.files[i].selected = local_task.torrent_file_selection[i] != 0;
+                    }
+                }
+            }
+        }
+        torrent::TorrentMetadataSelectionCallback metadata_selection;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            metadata_selection = m_cfg.torrent_metadata_selection_callback;
+        }
+        auto tor_dl = parse_res.ok() ? torrent::TorrentEngine::ExecuteTorrentDownload(
             local_task,
             tinfo,
             ctrl->pause_requested,
@@ -1042,8 +1114,18 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
                 auto it = m_tasks.find(task_id);
                 if (it != m_tasks.end() && !m_deleted_tasks.count(task_id)) {
                     if (it->second.state == TaskState::kCanceled || it->second.state == TaskState::kPaused) return;
+                    if ((it->second.state == TaskState::kCompleted || it->second.state == TaskState::kFailed) &&
+                        tp.state != TaskState::kCompleted && tp.state != TaskState::kFailed) {
+                        OPENIDM_LOG_WARN("Controller", "Ignoring stale torrent progress task=" + task_id +
+                                         " phase=" + TaskStateToString(tp.state) + " after terminal state=" + TaskStateToString(it->second.state));
+                        return;
+                    }
                     it->second.state = tp.state;
-                    it->second.downloaded_bytes = tp.downloaded_bytes;
+                    // received_bytes includes partial, not-yet-hash-verified
+                    // torrent blocks for live UI progress. ExecuteTorrentDownload
+                    // keeps local_task.downloaded_bytes verified-only, so these
+                    // transient bytes are never committed as resumable progress.
+                    it->second.downloaded_bytes = std::max(tp.downloaded_bytes, tp.received_bytes);
                     it->second.total_bytes = tp.total_bytes;
                     it->second.speed_bps = tp.speed_bps;
                     it->second.uploaded_bytes = tp.uploaded_bytes;
@@ -1055,12 +1137,23 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
                 }
             },
             m_global_limiter,
-            &m_global_speed_limit_bps);
-        if (!tor_dl.ok()) {
-            local_task.state = TaskState::kFailed;
-            local_task.error_code = tor_dl.error->code;
-            local_task.error_message = tor_dl.error->message;
-            local_task.status_detail = "Failed: " + tor_dl.error->message;
+            &m_global_speed_limit_bps,
+            32,
+            false,
+            1.0,
+            0,
+            std::move(metadata_selection)) : Result<void>::Err(local_task.error_code, local_task.error_message);
+        if (!tor_dl.ok() && parse_res.ok()) {
+            if (ctrl->pause_requested.load() || tor_dl.error->code == "ERR_TORRENT_SELECTION_CANCELED") {
+                local_task.state = TaskState::kPaused;
+                local_task.pause_reason = PauseReason::kUser;
+                local_task.status_detail = "Paused";
+            } else {
+                local_task.state = TaskState::kFailed;
+                local_task.error_code = tor_dl.error->code;
+                local_task.error_message = tor_dl.error->message;
+                local_task.status_detail = "Failed: " + tor_dl.error->message;
+            }
         }
     } else if (local_task.task_type == TaskType::kRtsp) {
         stream::RtspMmsAdapter rtsp_ad(m_cfg.ffmpeg_binary_path, m_cfg.allow_loopback);
@@ -1254,6 +1347,12 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
             auto it = m_tasks.find(task_id);
             if (it != m_tasks.end() && !m_deleted_tasks.count(task_id)) {
                 if (it->second.state == TaskState::kCanceled || it->second.state == TaskState::kPaused) return;
+                if ((it->second.state == TaskState::kCompleted || it->second.state == TaskState::kFailed) &&
+                    sp.phase != TaskState::kCompleted && sp.phase != TaskState::kFailed) {
+                    OPENIDM_LOG_WARN("Controller", "Ignoring stale stream progress task=" + task_id +
+                                     " phase=" + TaskStateToString(sp.phase) + " after terminal state=" + TaskStateToString(it->second.state));
+                    return;
+                }
                 auto& t = it->second;
                 t.state = sp.phase;
                 t.downloaded_bytes = sp.downloaded_bytes;
@@ -1373,6 +1472,11 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
                     local_task.state = TaskState::kCanceled;
                     local_task.status_detail = "Canceled";
                 }
+                if (t.state == TaskState::kPaused && ctrl->pause_requested.load() &&
+                    local_task.state != TaskState::kCanceled) {
+                    local_task.state = TaskState::kPaused;
+                    local_task.status_detail = "Paused";
+                }
                 t.state = local_task.state;
                 t.file_name = local_task.file_name;
                 t.category = local_task.category;
@@ -1431,7 +1535,6 @@ Result<void> DownloadController::StartTask(const std::string& task_id) {
 }
 
 Result<void> DownloadController::PauseTask(const std::string& task_id) {
-    std::shared_ptr<ActiveTaskControl> ctrl;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         auto it = m_tasks.find(task_id);
@@ -1445,20 +1548,12 @@ Result<void> DownloadController::PauseTask(const std::string& task_id) {
         }
         auto ait = m_active.find(task_id);
         if (ait != m_active.end()) {
-            ctrl = ait->second;
-            ctrl->pause_requested.store(true);
-        }
-    }
-    if (ctrl) {
-        while (!ctrl->finished.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        }
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto it = m_tasks.find(task_id);
-        if (it != m_tasks.end() && it->second.state != TaskState::kCompleted) {
+            // Do not synchronously wait for network workers on the UI/IPC caller.
+            // The worker observes this flag, exits its current I/O operation, and
+            // performs the final persistence merge below without resurrecting the task.
+            ait->second->pause_requested.store(true);
             it->second.state = TaskState::kPaused;
-            it->second.status_detail = "Paused";
-            it->second.pause_reason = PauseReason::kUser;
+            it->second.status_detail = "Pausing...";
             it->second.speed_bps = 0;
             m_store.UpsertTask(it->second);
         }
@@ -1586,47 +1681,156 @@ Result<void> DownloadController::RemoveTask(const std::string& task_id, bool del
         std::lock_guard<std::mutex> lock(m_mutex);
         auto it = m_tasks.find(task_id);
         if (it == m_tasks.end()) return Result<void>::Err("ERR_NOT_FOUND", "Task not found");
+        if (m_deleted_tasks.count(task_id)) {
+            return Result<void>::Err("ERR_TASK_REMOVING", "Task removal is already in progress");
+        }
         m_deleted_tasks.insert(task_id);
     }
 
-    // Stop active worker if running (without failing if already completed)
+    // Stop active worker if running and cleanly join thread
     std::shared_ptr<ActiveTaskControl> ctrl;
+    std::thread worker_to_join;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         auto ait = m_active.find(task_id);
-        if (ait != m_active.end() && !ait->second->finished.load()) {
+        if (ait != m_active.end()) {
             ctrl = ait->second;
             ctrl->cancel_requested.store(true);
         }
     }
     if (ctrl) {
-        while (!ctrl->finished.load()) {
+        auto start_wait = std::chrono::steady_clock::now();
+        while (!ctrl->finished.load() && 
+               std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_wait).count() < 3000) {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto ait = m_active.find(task_id);
+        if (ait != m_active.end()) {
+            if (ait->second->worker_thread.joinable()) {
+                worker_to_join = std::move(ait->second->worker_thread);
+            }
+            m_active.erase(ait);
+        }
+    }
+    if (worker_to_join.joinable()) {
+        worker_to_join.join();
+    }
+
+    TaskModel task_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const auto it = m_tasks.find(task_id);
+        if (it == m_tasks.end()) {
+            m_deleted_tasks.erase(task_id);
+            return Result<void>::Err("ERR_NOT_FOUND", "Task not found");
+        }
+        task_snapshot = it->second;
+    }
+
+    auto fail_removal = [this, &task_id](const std::string& code, const std::string& message) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_deleted_tasks.erase(task_id);
+        m_cv.notify_all();
+        return Result<void>::Err(code, message);
+    };
+
+    // Clean only the task-owned partial/temp path. Keep the completed user output
+    // untouched unless the explicit permanent-delete action was requested.
+    if (!task_snapshot.part_path.empty()) {
+        std::error_code ec;
+        std::filesystem::remove_all(task_snapshot.part_path, ec);
+        if (ec) {
+            OPENIDM_LOG_ERROR("Controller", "Failed to remove partial output " + task_snapshot.part_path + ": " + ec.message());
+            return fail_removal("ERR_PART_DELETE_FAILED", "Failed to remove partial download data: " + ec.message());
         }
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_tasks.find(task_id);
-    if (it != m_tasks.end()) {
-        std::error_code ec;
-        // Always clean up incomplete .openidm.part or temp directory
-        if (!it->second.part_path.empty()) {
-            std::filesystem::remove_all(it->second.part_path, ec);
-        }
-        // Only delete completed user output file if delete_file == true was explicitly requested!
-        if (delete_file && it->second.state == TaskState::kCompleted) {
-            std::filesystem::path fp = std::filesystem::path(it->second.save_dir) / it->second.file_name;
-            if (std::filesystem::exists(fp, ec)) {
-                std::filesystem::remove(fp, ec);
-                if (ec) {
-                    OPENIDM_LOG_ERROR("Controller", "Failed to delete output file " + fp.string() + ": " + ec.message());
-                    return Result<void>::Err("ERR_FILE_DELETE_FAILED", "Failed to delete file from disk: " + ec.message());
+    // Delete physical file(s) permanently when requested (regardless of task state: paused, completed, failed)
+    if (delete_file) {
+        auto remove_output_path = [&](const std::string& relative_path, bool recursive) -> Result<void> {
+            const auto output_path = ResolveTaskOutputPath(
+                std::filesystem::u8path(task_snapshot.save_dir), std::filesystem::u8path(relative_path));
+            if (!output_path.has_value()) {
+                return Result<void>::Err("ERR_FILE_DELETE_FAILED", "Refusing to delete a path outside the download folder.");
+            }
+
+            std::error_code ec;
+            const auto file_status = std::filesystem::symlink_status(*output_path, ec);
+            if (ec == std::errc::no_such_file_or_directory ||
+                (!ec && file_status.type() == std::filesystem::file_type::not_found)) {
+                return Result<void>::Ok();
+            }
+            if (ec) {
+                return Result<void>::Err("ERR_FILE_DELETE_FAILED", "Failed to inspect file on disk: " + ec.message());
+            }
+#ifdef _WIN32
+            const DWORD attributes = GetFileAttributesW(output_path->c_str());
+            if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0) {
+                return Result<void>::Err("ERR_FILE_DELETE_FAILED", "The downloaded file is read-only. Clear its read-only attribute and retry.");
+            }
+#endif
+            if (recursive && file_status.type() == std::filesystem::file_type::directory) {
+                std::filesystem::remove_all(*output_path, ec);
+            } else {
+                std::filesystem::remove(*output_path, ec);
+            }
+            if (ec) {
+                return Result<void>::Err("ERR_FILE_DELETE_FAILED", "Failed to delete file from disk: " + ec.message());
+            }
+            return Result<void>::Ok();
+        };
+
+        if (task_snapshot.task_type == TaskType::kTorrent && !task_snapshot.torrent_file_paths.empty()) {
+            // Multi-file torrents are written at their metadata-relative paths;
+            // task.file_name is only the torrent's display/root name and may not
+            // exist on disk. Delete each selected payload and propagate failures.
+            for (size_t i = 0; i < task_snapshot.torrent_file_paths.size(); ++i) {
+                if (i < task_snapshot.torrent_file_selection.size() && !task_snapshot.torrent_file_selection[i]) continue;
+                auto result = remove_output_path(task_snapshot.torrent_file_paths[i], false);
+                if (!result.ok()) {
+                    OPENIDM_LOG_ERROR("Controller", "Failed to permanently delete torrent payload for task " + task_id + ": " + result.error->message);
+                    return fail_removal(result.error->code, result.error->message);
                 }
             }
+        } else {
+            auto result = remove_output_path(task_snapshot.file_name, true);
+            if (!result.ok()) {
+                OPENIDM_LOG_ERROR("Controller", "Failed to permanently delete output for task " + task_id + ": " + result.error->message);
+                return fail_removal(result.error->code, result.error->message);
+            }
         }
-        m_tasks.erase(it);
+
+        // Clean up partial extension file if present
+        if (task_snapshot.task_type != TaskType::kTorrent) {
+            auto part_ext_path = ResolveTaskOutputPath(
+                std::filesystem::u8path(task_snapshot.save_dir), std::filesystem::u8path(task_snapshot.file_name + ".part"));
+            if (!part_ext_path.has_value()) {
+                return fail_removal("ERR_FILE_DELETE_FAILED", "Refusing to delete a partial file outside the download folder.");
+            }
+            std::error_code part_ec;
+            std::filesystem::remove(*part_ext_path, part_ec);
+            if (part_ec && part_ec != std::errc::no_such_file_or_directory) {
+                return fail_removal("ERR_FILE_DELETE_FAILED", "Failed to delete partial output file: " + part_ec.message());
+            }
+        }
     }
-    return m_store.DeleteTask(task_id);
+
+    // Persist removal before erasing the in-memory model so a storage failure
+    // cannot make the task disappear only until the next refresh/restart.
+    auto db_result = m_store.DeleteTask(task_id);
+    if (!db_result.ok()) {
+        return fail_removal(db_result.error->code, db_result.error->message);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_tasks.erase(task_id);
+        // Worker completion is synchronized above; no callback can resurrect it.
+        m_deleted_tasks.erase(task_id);
+    }
+    m_cv.notify_all();
+    return Result<void>::Ok();
 }
 
 Result<void> DownloadController::UpdateTask(const TaskModel& task) {
@@ -1688,7 +1892,12 @@ void DownloadController::PauseAllTasks() {
 void DownloadController::ResumeAllTasks() {
     std::lock_guard<std::mutex> lock(m_mutex);
     for (auto& [id, t] : m_tasks) {
-        if (t.state == TaskState::kPaused && !t.scheduled) {
+        if (t.state == TaskState::kPaused && (!t.scheduled || t.pause_reason == PauseReason::kUser)) {
+            // Resume All is an explicit user action and has the same meaning as
+            // Resume on an individual task, including clearing its old schedule.
+            t.scheduled = false;
+            t.schedule_time_local.clear();
+            t.schedule_stop_time_local.clear();
             t.state = TaskState::kQueued;
             t.pause_reason = PauseReason::kNone;
             t.status_detail = "Queued";
@@ -1854,15 +2063,32 @@ Result<void> DownloadController::SetTaskSchedule(
     if (it == m_tasks.end() || m_deleted_tasks.count(task_id)) {
         return Result<void>::Err("ERR_NOT_FOUND", "Task not found");
     }
+    const bool user_paused = it->second.pause_reason == PauseReason::kUser &&
+                             it->second.state != TaskState::kCompleted &&
+                             it->second.state != TaskState::kCanceled;
+    const bool was_schedule_paused = it->second.state == TaskState::kPaused &&
+                                     it->second.pause_reason == PauseReason::kQueueSchedule;
     it->second.scheduled = !start_time_local.empty();
     it->second.schedule_time_local = start_time_local;
     it->second.schedule_stop_time_local = stop_time_local;
-    if (it->second.scheduled) {
+    if (user_paused) {
+        // User intent outranks task and queue schedules. Editing a schedule must
+        // never clear an explicit pause or make the task eligible for auto-retry.
+        it->second.pause_reason = PauseReason::kUser;
+        if (it->second.state == TaskState::kPaused) {
+            it->second.status_detail = "Paused (User)";
+        }
+    } else if (it->second.scheduled) {
         it->second.pause_reason = PauseReason::kQueueSchedule;
         if (it->second.state == TaskState::kQueued) {
             it->second.state = TaskState::kPaused;
             it->second.status_detail = "Scheduled (" + start_time_local + ")";
         }
+    } else if (was_schedule_paused) {
+        // Removing a schedule does not itself start the task. Resume remains an
+        // explicit user action, matching the behavior for other paused tasks.
+        it->second.pause_reason = PauseReason::kNone;
+        it->second.status_detail = "Paused (Schedule Removed)";
     }
     m_store.UpsertTask(it->second);
     m_cv.notify_all();

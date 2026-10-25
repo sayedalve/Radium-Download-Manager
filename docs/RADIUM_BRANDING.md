@@ -22,15 +22,15 @@
 
 ## 2. Color Palette & Visual Identity
 
-Radium employs a sophisticated, modern Windows 11 palette characterized by a **deep charcoal dark theme**, a **restrained electric blue accent**, and a crisp, high-contrast light theme.
+Radium employs a sophisticated, modern Windows 11 palette characterized by a **deep charcoal dark theme**, a **coral red accent**, and a crisp, high-contrast light theme.
 
 ```
-       DEEP CHARCOAL DARK THEME                   ELECTRIC BLUE ACCENT
+       DEEP CHARCOAL DARK THEME                   CORAL RED ACCENT
 ┌──────────────────────────────────────┐       ┌────────────────────────┐
-│ App Background:    #0F172A (Slate 900)│       │ Primary Accent: #2563EB│
-│ Surface Primary:   #1E293B (Slate 800)│       │ Accent Hover:   #3B82F6│
-│ Surface Elevated:  #334155 (Slate 700)│       │ Accent Active:  #1D4ED8│
-│ Surface Selected:  #1E3A8A (Blue 900) │       │ Progress Fill:  #3B82F6│
+│ App Background:    #161618 (Charcoal) │       │ Primary Accent: #FF4757│
+│ Surface Primary:   #1E1E22            │       │ Accent Hover:   #FF666D│
+│ Surface Elevated:  #28282E            │       │ Progress Fill:  #FF4757│
+│ Surface Selected:  #302328 (Warm tint)│       │ Focus Ring:     #FF4757│
 └──────────────────────────────────────┘       └────────────────────────┘
 ```
 
@@ -38,21 +38,24 @@ Radium employs a sophisticated, modern Windows 11 palette characterized by a **d
 
 | Token Name | Dark Theme (Default) | Light Theme | Usage |
 | :--- | :--- | :--- | :--- |
-| `app_background` | `#0F172A` (Deep Slate) | `#F8FAFC` (Cool Off-White) | Desktop client window background |
-| `surface_primary` | `#1E293B` (Dark Navy Surface) | `#FFFFFF` (Pure White) | Toolbar, sidebar, table header, details panel |
-| `surface_elevated` | `#334155` (Elevated Card) | `#F1F5F9` (Subtle Gray) | Button backgrounds, badges, cards |
-| `surface_hover` | `#475569` (Interactive Hover) | `#E2E8F0` (Hover Gray) | Hovered list rows and toolbar buttons |
-| `surface_selected` | `#1E3A8A` (Deep Blue Select) | `#DBEAFE` (Light Blue Select) | Selected task row in queue table |
-| `accent_primary` | `#2563EB` (Restrained Blue) | `#2563EB` (Restrained Blue) | Primary action buttons, selection indicators |
-| `accent_hover` | `#3B82F6` (Vibrant Blue Hover) | `#1D4ED8` (Deep Blue Hover) | Hover state for primary action buttons |
-| `text_primary` | `#F8FAFC` (Near White) | `#0F172A` (Deep Charcoal) | Primary headings, task filenames, speeds |
-| `text_secondary` | `#94A3B8` (Muted Slate) | `#64748B` (Muted Gray) | Subheadings, dates, metadata labels |
-| `text_muted` | `#64748B` (Dimmed Slate) | `#94A3B8` (Light Slate) | Disabled buttons, inactive status |
-| `border_subtle` | `#334155` (Subtle Border) | `#E2E8F0` (Light Border) | Card borders, column dividers, status bar |
-| `status_success` | `#22C55E` (Emerald Green) | `#16A34A` (Forest Green) | Completed downloads, connected indicators |
-| `status_warning` | `#F59E0B` (Amber) | `#D97706` (Deep Amber) | Stalled transfers, retrying, warnings |
-| `status_error` | `#EF4444` (Vibrant Red) | `#DC2626` (Crimson Red) | Failed downloads, disk full, network errors |
-| `badge_stream` | `#8B5CF6` (Violet / Purple) | `#7C3AED` (Deep Violet) | HLS & DASH adaptive stream badges |
+| `app_background` | `#161618` | `#F8FAFC` | Desktop client window background |
+| `cosmic_void` | `#121214` | — | Deep background where needed |
+| `surface_primary` | `#1E1E22` | `#FFFFFF` | Toolbar, sidebar, table header, details panel |
+| `surface_elevated` | `#28282E` | `#F1F5F9` | Button backgrounds, badges, cards |
+| `surface_hover` | `#2B2B32` | `#E2E8F0` | Hovered list rows and toolbar buttons |
+| `surface_selected` | `#302328` | `#DBEAFE` | Selected task row with restrained coral tint |
+| `surface_pressed` | `#3A2B30` | — | Pressed controls |
+| `accent_primary` | `#FF4757` | `#FF4757` | Primary actions, active downloads, progress fills |
+| `accent_hover` | `#FF5F6A` | `#FF353E` | Hover state for coral actions |
+| `text_primary` | `#F2F2F3` | `#0F172A` | Primary headings, task filenames, speeds |
+| `text_secondary` | `#B4B4BD` | `#475569` | Subheadings, dates, metadata labels |
+| `text_muted` | `#85858F` | `#94A3B8` | Disabled controls and low-priority metadata |
+| `border_subtle` | `#35353D` | `#CBD5E1` | Card borders, column dividers, status bar |
+| `border_focus` | `#FF4757` | `#FF4757` | Keyboard focus indicator |
+| `status_success` | `#A9B4C2` | `#7D8A99` | Completed downloads |
+| `status_warning` | `#F2B84B` | `#D97706` | Paused and scheduled downloads |
+| `status_danger` | `#FF9F43` | `#D97A24` | Failed and canceled downloads |
+| `progress_track` | `#303036` | `#E2E8F0` | Unfilled progress track |
 
 ---
 
@@ -67,7 +70,7 @@ Radium employs a sophisticated, modern Windows 11 palette characterized by a **d
 
 ## 4. Logo & Iconography
 
-- **Official Mark**: Stylized letter **R** within an electric blue rounded hexagonal / shield container with energetic gradient refraction.
+- **Official Mark**: Stylized letter **R** within a coral red rounded hexagonal / shield container.
 - **Desktop Executable Icon**: Multi-size Windows icon file (`radium.ico`) supporting 16x16, 24x24, 32x32, 48x48, and 256x256 dimensions.
 - **Browser Extension Icons**: PNG suite at 16x16, 32x32, 48x48, and 128x128 pixels in `extension/icons/`.
 - **System Tray Icon**: High-contrast icon rendered dynamically with GDI vector fallback.

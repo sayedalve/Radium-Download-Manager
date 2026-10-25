@@ -17,10 +17,13 @@
    - **Behavior:** `blob:` URLs themselves are never sent to `openidm` as downloadable file URLs because `blob:` handles exist only inside the browser renderer's memory.
 3. **Sites Requiring Custom JavaScript Challenge Solving per Segment (e.g., YouTube Signature Cipher / PO Token):**
    - **Limitation:** OpenIDM is a general HTTP/HTTPS and standard HLS/DASH/MSS download manager, not a site-specific scraper engine like `yt-dlp`. Sites that dynamically sign or throttle every individual segment via proprietary JS VM challenges are not supported natively.
-4. **BitTorrent Scope Boundaries (BEP 3 Supported; DHT/PEX Unsupported):**
-   - **Supported Implementation:** Flux implements core BEP 3 peer wire protocol framing, compact IPv4/IPv6 tracker communication (HTTP/HTTPS announces), 16 KB piece/block scheduling with SHA-1 integrity verification, and multi-file disk layout mapping (`multi_file_storage.hpp`, `piece_manager.hpp`, `peer_wire_protocol.hpp`, `tracker_client.hpp`).
-   - **Limitations:** Swarm discovery relies strictly on HTTP/HTTPS tracker announces. Distributed Hash Table (DHT / BEP 5), Peer Exchange (PEX / BEP 11), micro Transport Protocol (uTP), and BitTorrent v2 (BEP 52 merkle trees) are unsupported in this release.
-5. **FTPS (FTP over TLS/SSL) Disabled Pending Verified TLS Implementation:**
+4. **BitTorrent Scope Boundaries (BEP 3, DHT, and incoming upload support):**
+   - **Supported Implementation:** Flux implements core BEP 3 peer wire protocol framing, compact IPv4/IPv6 tracker communication, bounded DHT peer discovery, incoming TCP peer handshakes on port 6881, verified-piece bitfields, requested-block upload accounting, 16 KB piece/block scheduling with SHA-1 integrity verification, and multi-file disk layout mapping (`multi_file_storage.hpp`, `piece_manager.hpp`, `peer_wire_protocol.hpp`, `tracker_client.hpp`).
+   - **Limitations:** Peer Exchange (PEX / BEP 11), micro Transport Protocol (uTP), and BitTorrent v2 (BEP 52 merkle trees) remain unsupported. Selective multi-file torrents advertise and upload only pieces whose complete ranges are selected; unselected ranges are never fabricated or served.
+5. **Magnet multi-file selection:**
+   - **Supported behavior:** After BEP 9 metadata exchange, Radium opens the same native file-selection dialog used for local `.torrent` files. The selected paths and selection mask are persisted with the task before storage allocation, so restart/recovery preserves the choice.
+   - **Limitation:** The selector and incoming upload listener are Windows-native features; headless/controller clients without a metadata callback retain the safe default of selecting all files.
+6. **FTPS (FTP over TLS/SSL) Disabled Pending Verified TLS Implementation:**
    - **Limitation:** Plain FTP (RFC 959, 2428, 3659) with EPSV/PASV modes and REST resume is supported. FTPS (RFC 4217) requires explicit TLS negotiation across both control and dynamic data channels with strict certificate chain validation, which is not yet implemented.
    - **Behavior:** `ftps://` URLs are rejected immediately with `ERR_FTPS_UNSUPPORTED` (*"FTPS (FTP over TLS/SSL) is not supported. Plaintext transmission over ftps:// is prohibited."*) before any socket connection is attempted, preventing plaintext credential or data leakage over unencrypted channels.
 
@@ -46,3 +49,8 @@
    - The automated build and verification container runs Debian 12 Linux `x86_64` (`g++ 12.2.0`, `node 18.20.4`, `python3 3.11.2`, `ffmpeg 5.1.9`) without a Windows cross-compiler (`mingw-w64` or `MSVC`).
    - All Win32 API implementations (`WinHTTP`, `CreateFileW` + `OVERLAPPED`, `CreateJobObjectW` + `CreateProcessW`, Named Pipes, DPAPI/BCrypt, and the Win32 `RegisterClassExW`/`CreateWindowExW` GDI double-buffered GUI in `src/ui/win32_main_window.cpp`) are implemented in `#ifdef _WIN32` blocks and verified by source inspection, while the shared C++20 core, UI view-model, native `N_m3u8DL-RE` worker, and extension are verified by execution (`26 / 26` test suites passing).
    - Producing signed PE32+ `.exe` binaries (`openidm.exe`, `openidm-nmh.exe`, `N_m3u8DL-RE.exe`) and compiling the Inno Setup installer (`OpenIDM-Setup-x64-0.2.0.exe`) requires running `.\scripts\build-windows-msvc.ps1` on a Windows 11 `x64` workstation with Visual Studio 2022 and Inno Setup 6 (`ISCC.exe`).
+
+### Brave unpacked extension install state (2026-10-23)
+
+A fresh Brave launch showed no Radium extension card. The active Default profile's `Secure Preferences` retains an unpacked-path record, but `Preferences` has no matching extension entry. This points to stale profile metadata rather than proof of an active installation; the historical removal trigger is still undetermined. A stable LocalAppData extension copy is staged, but loading it into Brave and restart persistence checks await the required action-time confirmation.
+

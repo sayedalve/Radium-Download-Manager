@@ -24,10 +24,10 @@ function positionOverlayHost(video, hostEl) {
   const isCollapsed = (rect.width !== undefined && rect.width < 120) || (rect.height !== undefined && rect.height < 80);
   const isOffscreen = (rect.bottom !== undefined && rect.bottom < 28) || (rect.right !== undefined && rect.right < 48);
 
-  // Place badge 10px from top-right corner of the video element so bottom transport controls are never obscured
-  const topPx = Math.max(8, Math.round((rect.top || 20) + 10));
-  const rightEdge = rect.right || ((rect.left || 20) + (rect.width || 640));
-  const leftPx = Math.max(8, Math.round(rightEdge - 168));
+  // Keep the compact control in a small toolbar just above the player, outside
+  // the video image and aligned to the player's left edge.
+  const topPx = Math.max(8, Math.round((Number.isFinite(rect.top) ? rect.top : 20) - 34));
+  const leftPx = Math.max(8, Math.round(Number.isFinite(rect.left) ? rect.left : 20));
 
   const visCss = (isCollapsed || isOffscreen)
     ? "opacity:0;pointer-events:none;"
@@ -222,27 +222,27 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
       button {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        background: #2D2E32;
+        gap: 6px;
+        background: #25262A;
         color: #F2F2F3;
         border: 1px solid #414248;
-        border-radius: 7px;
-        padding: 7px 14px;
-        font: 600 13px "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        border-radius: 6px;
+        padding: 4px 9px;
+        font: 600 11px "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
         letter-spacing: 0.01em;
         cursor: pointer;
         opacity: 0.94;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
-        transition: opacity 0.14s ease, border-color 0.14s ease, background 0.14s ease, transform 0.1s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        transition: border-color 0.12s ease, background 0.12s ease;
         white-space: nowrap;
       }
       button::before {
         content: "";
-        width: 7px;
-        height: 7px;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
         background: #FF4F57;
-        box-shadow: 0 0 8px rgba(255, 79, 87, 0.75);
+        box-shadow: none;
         flex-shrink: 0;
       }
       button:hover:not(:disabled), button:focus-visible {
@@ -287,7 +287,7 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
     btn.disabled = isDrm;
     const baseBtnStyle =
       "background:#2D2E32;color:#F2F2F3;border:1px solid #414248;border-radius:7px;" +
-      "padding:7px 14px;font:600 13px 'Segoe UI Variable Text','Segoe UI',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.55);white-space:nowrap;";
+      "padding:4px 9px;font:600 11px 'Segoe UI Variable Text','Segoe UI',sans-serif;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.35);white-space:nowrap;";
     if (btn.style) {
       btn.style.cssText = baseBtnStyle;
     }

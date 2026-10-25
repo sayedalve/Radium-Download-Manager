@@ -321,6 +321,88 @@ Result<TorrentInfo> TorrentParser::ParseTorrentBuffer(std::string_view data) {
     return Result<TorrentInfo>::Ok(std::move(info));
 }
 
+Result<TorrentInfo> TorrentParser::ParseInfoDictionary(
+    std::string_view info_dict_bencode,
+    const std::string& announce,
+    const std::vector<std::string>& announce_list) {
+
+    auto dec_res = BencodeParser::Decode(info_dict_bencode);
+    if (!dec_res.ok()) return Result<TorrentInfo>::Err(dec_res.error->code, dec_res.error->message);
+    const auto& info_dict = dec_res.value.value();
+    if (!info_dict.is_dict()) return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "info must be dict");
+
+    TorrentInfo info;
+    info.is_magnet = false;
+    info.announce = announce;
+    info.announce_list = announce_list;
+    if (info.announce_list.empty() && !announce.empty()) info.announce_list.push_back(announce);
+
+    info.info_hash_raw = CryptoUtils::ComputeBufferSha1Raw(reinterpret_cast<const uint8_t*>(info_dict_bencode.data()), info_dict_bencode.size());
+    info.info_hash_hex = ToLower(BytesToHex(info.info_hash_raw.data(), info.info_hash_raw.size()));
+
+    if (info_dict.contains("name") && info_dict["name"].is_string()) {
+        info.name = PathSanitizer::SanitizeFileName(info_dict["name"].as_string());
+    } else {
+        info.name = "torrent_" + info.info_hash_hex.substr(0, 8);
+    }
+
+    if (info_dict.contains("piece length") && info_dict["piece length"].is_int()) {
+        int64_t pl = info_dict["piece length"].as_int();
+        if (pl <= 0 || pl > 134217728) return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Invalid piece length");
+        info.piece_length = static_cast<uint64_t>(pl);
+    } else {
+        return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Missing piece length");
+    }
+
+    if (info_dict.contains("pieces") && info_dict["pieces"].is_string()) {
+        const std::string& p_str = info_dict["pieces"].as_string();
+        if (p_str.empty() || p_str.size() % 20 != 0) return Result<TorrentInfo>::Err("ERR_TORRENT_PIECES", "Invalid pieces");
+        size_t count = p_str.size() / 20;
+        info.pieces.reserve(count);
+        for (size_t i = 0; i < count; ++i) {
+            const uint8_t* p = reinterpret_cast<const uint8_t*>(p_str.data() + (i * 20));
+            info.pieces.emplace_back(p, p + 20);
+        }
+    } else {
+        return Result<TorrentInfo>::Err("ERR_TORRENT_PIECES", "Missing pieces");
+    }
+
+    if (info_dict.contains("files") && info_dict["files"].is_list()) {
+        uint64_t current_offset = 0;
+        for (const auto& f : info_dict["files"].as_list()) {
+            if (!f.is_dict() || !f.contains("length") || !f.contains("path") || !f["length"].is_int()) continue;
+            int64_t flen = f["length"].as_int();
+            if (flen < 0) return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Negative file length");
+            uint64_t len = static_cast<uint64_t>(flen);
+            std::filesystem::path rel_path;
+            if (f["path"].is_list()) {
+                for (const auto& seg : f["path"].as_list()) {
+                    if (seg.is_string()) rel_path /= PathSanitizer::SanitizeFileName(seg.as_string());
+                }
+            }
+            if (rel_path.empty()) rel_path = "unnamed.bin";
+            TorrentFileEntry entry{rel_path, len, current_offset, true};
+            current_offset += len;
+            info.files.push_back(std::move(entry));
+        }
+        info.total_length = current_offset;
+    } else if (info_dict.contains("length") && info_dict["length"].is_int()) {
+        int64_t flen = info_dict["length"].as_int();
+        if (flen <= 0) return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Invalid length");
+        uint64_t len = static_cast<uint64_t>(flen);
+        TorrentFileEntry entry{info.name, len, 0, true};
+        info.files.push_back(std::move(entry));
+        info.total_length = len;
+    } else {
+        return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Missing length");
+    }
+
+    if (info.total_length == 0 || info.files.empty()) return Result<TorrentInfo>::Err("ERR_TORRENT_MALFORMED", "Zero length");
+    size_t expected_pieces = static_cast<size_t>((info.total_length + info.piece_length - 1) / info.piece_length);
+    if (info.pieces.size() != expected_pieces) return Result<TorrentInfo>::Err("ERR_TORRENT_PIECES", "Piece count mismatch");
+    return Result<TorrentInfo>::Ok(std::move(info));
+}
+
 Result<TorrentInfo> TorrentParser::ParseMagnetUri(std::string_view magnet_uri) {
     std::string s(magnet_uri);
     std::string prefix = "magnet:?";

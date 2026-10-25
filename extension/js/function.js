@@ -652,9 +652,10 @@ function classifyNetworkResource(details) {
       if (rule.size > 0 && totalSize > 0 && totalSize < rule.size) {
         return null;
       }
+      const knownMediaExtensions = new Set(["mp4", "m4v", "m4a", "webm", "mkv", "mov", "flv", "avi", "ogv", "mp3", "flac", "ogg", "wav", "aac", "opus", "wma"]);
       return {
         url,
-        ext: ext || rule.ext,
+        ext: knownMediaExtensions.has(ext) ? ext : rule.ext,
         streamType: rule.streamType,
         sourceType: rule.sourceType || classifyMediaSourceType(url, contentType),
         mime: contentType,

@@ -95,3 +95,6 @@ powershell -ExecutionPolicy Bypass -File scripts\package-release-zip.ps1 -Versio
 | **`Access to the specified native messaging host is forbidden`** | The unpacked extension's ID in `chrome://extensions` is not listed in `allowed_origins`. | Re-run `.\scripts\register-native-messaging.ps1` without arguments; it automatically derives and adds the unpacked path-based extension ID. |
 | **`N_m3u8DL-RE.exe` exits immediately with access denied** | `N_m3u8DL-RE` defaults to creating a `Logs/` directory next to its binary in `%ProgramFiles%`. | Flux passes `--no-log` and executes workers with user-scoped response files in `%LOCALAPPDATA%\Flux\tmp\`. |
 | **CMake cannot find compiler** | Running from a standard shell without MSVC environment variables. | Launch from the *x64 Native Tools Command Prompt for VS 2022* or invoke `vcvars64.bat`. |
+
+Native messaging registration prefers the staged `dist\radium-nmh.exe` so cleaning the C++ build directory does not invalidate the browser bridge. Rebuilds stage extension assets in `dist\extension` and do not remove the source `extension\` directory.
+

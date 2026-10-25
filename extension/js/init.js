@@ -24,6 +24,7 @@ var G = {
   handledDownloadIds: new Set(),
   handledDownloadUrls: new Map(),
   tabUrlMap: new Map(),
+  sizeProbeInFlight: new Map(),
   playerErrors: new Map(),
 
   // Multi-tab and per-URL link click correlation & Alt-bypass tracking (Defect C fix)

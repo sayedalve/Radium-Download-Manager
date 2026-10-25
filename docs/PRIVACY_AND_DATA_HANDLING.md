@@ -39,3 +39,7 @@ Before any string is written to `openidm.log` or displayed in the UI Task Log ta
    - Example: `-H "Cookie: sid=12345"` -> `-H "Cookie: [REDACTED]"`.
 2. **URL Query Parameter Redaction:**
    - Query parameters matching `(token|access_token|auth|sig|signature|hdnea|Policy|Signature|Key-Pair-Id|X-Amz-Signature|X-Amz-Credential|X-Amz-Security-Token)=([^&\\s"]+)` are replaced with `$1=[REDACTED]` in application log files (while the full unredacted URL remains available only inside the authenticated user's Task Properties dialog).
+
+### Browser media cache scope
+
+Detected media metadata is held per browser tab and is cleared when that tab changes its main-frame document URL, including History API and fragment-based navigation. A popup request also checks the active tab's current URL against cached candidate identities. Navigation in another tab does not clear this tab's data. Service-worker session persistence remains limited to extension session state and is reconciled against the current document before popup display.

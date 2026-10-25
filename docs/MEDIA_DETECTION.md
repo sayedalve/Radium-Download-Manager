@@ -115,3 +115,11 @@ Websites like YouTube (`youtube.com/watch?v=...`, `youtube.com/shorts/...`), Vim
 3. **Capture via In-Page Playback Hooks:**
    - When the user plays the video in the browser, `catch-script/catch.js` (hooking `window.fetch` and `XMLHttpRequest` in the `MAIN` world) and the background network monitor capture the actual stream manifests (`.m3u8`, `.mpd`) and progressive segments, routing them cleanly through `N_m3u8DL-RE` or the segmented engine.
 
+
+### Page-scoped candidate lifecycle
+
+Media candidates are scoped to the active document URL within each tab. Main-frame full navigation, History API navigation, fragment navigation, and popup requests reconcile the current document identity and discard stale results for that tab only. Results from other tabs remain isolated, and duplicate URLs continue to use the existing candidate deduplication rules. SPA history and per-tab scoping have deterministic extension tests; actual multi-page site behavior requires live browser verification.
+
+### Media size and filename resolution
+
+For progressive media, the detector uses response `Content-Length` or the total from `Content-Range` when available. If neither supplies a size, the extension performs a bounded HEAD then one-byte-range metadata lookup, cancels the range body, and shows an explicit checking/unknown state until a reliable total is found. MIME-derived media extensions are used when the URL suffix is numeric or otherwise not a recognized media extension; numeric server filenames receive that resolved extension during handoff. Existing nonnumeric suffixes are retained.

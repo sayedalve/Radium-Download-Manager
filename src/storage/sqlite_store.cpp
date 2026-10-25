@@ -185,6 +185,16 @@ Result<void> SqliteStore::UpsertTask(const TaskModel& task) {
     stream_obj["concurrent_download"] = task.stream_options.concurrent_download;
     stream_obj["custom_hls_key_hex"] = task.stream_options.custom_hls_key_hex;
     stream_obj["cached_manifest_body"] = task.stream_options.cached_manifest_body;
+    if (!task.torrent_file_paths.empty()) {
+        json::Array selection;
+        for (size_t i = 0; i < task.torrent_file_paths.size(); ++i) {
+            json::Value entry(json::Object{});
+            entry["path"] = task.torrent_file_paths[i];
+            entry["selected"] = i < task.torrent_file_selection.size() && task.torrent_file_selection[i] != 0;
+            selection.push_back(std::move(entry));
+        }
+        stream_obj["torrent_selection"] = std::move(selection);
+    }
 
     const char* sql = R"SQL(
         INSERT INTO tasks (
@@ -515,6 +525,13 @@ static TaskModel ParseTaskRow(sqlite3_stmt* stmt) {
             t.stream_options.concurrent_download = s_val["concurrent_download"].as_bool(true);
             t.stream_options.custom_hls_key_hex = s_val["custom_hls_key_hex"].as_string("");
             t.stream_options.cached_manifest_body = s_val["cached_manifest_body"].as_string("");
+            if (s_val.contains("torrent_selection") && s_val["torrent_selection"].is_array()) {
+                for (const auto& entry : s_val["torrent_selection"].as_array()) {
+                    if (!entry.is_object()) continue;
+                    t.torrent_file_paths.push_back(entry["path"].as_string(""));
+                    t.torrent_file_selection.push_back(entry["selected"].as_bool(true) ? 1 : 0);
+                }
+            }
         }
     } catch (...) {}
 
@@ -635,7 +652,12 @@ Result<void> SqliteStore::DeleteTask(const std::string& task_id) {
         return Result<void>::Err("ERR_SQLITE_PREPARE", sqlite3_errmsg(m_db));
     }
     sqlite3_bind_text(stmt, 1, task_id.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_step(stmt);
+    const int step_result = sqlite3_step(stmt);
+    if (step_result != SQLITE_DONE) {
+        const std::string message = sqlite3_errmsg(m_db);
+        sqlite3_finalize(stmt);
+        return Result<void>::Err("ERR_SQLITE_DELETE", message);
+    }
     sqlite3_finalize(stmt);
     return Result<void>::Ok();
 }

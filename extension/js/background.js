@@ -203,6 +203,23 @@ function ensureSessionRestored(storageArea = null) {
   return sessionRestorePromise;
 }
 
+// Keep media results scoped to the current document URL for each tab. This is
+// also used for SPA history changes, where tabs.onUpdated does not fire.
+function updateTabDocument(tabId, url) {
+  if (!Number.isInteger(tabId) || tabId <= 0 || typeof url !== "string" || !url) return false;
+  const previousUrl = G.tabUrlMap.get(tabId) || "";
+  if (previousUrl && previousUrl !== url) {
+    G.cacheData.delete(tabId);
+    if (G.playerErrors) G.playerErrors.delete(tabId);
+    if (G.blobMediaMap) G.blobMediaMap.delete(tabId);
+    updateTabBadge(tabId);
+    persistSessionState().catch(() => {});
+    notifyPopupMediaUpdated(tabId);
+  }
+  G.tabUrlMap.set(tabId, url);
+  return previousUrl !== url;
+}
+
 // Categorizes native messaging host errors for clear diagnostic logging
 function categorizeNativeError(msg) {
   if (!msg) return "UNKNOWN_NATIVE_ERROR";
@@ -542,6 +559,80 @@ async function autoProbeManifestQualities(tabId, candidate) {
   return false;
 }
 
+// Resolve a direct media representation's size without reading its payload.
+// HEAD is preferred; a single-byte range request is the fallback for servers
+// that reject HEAD or omit Content-Length. Range bodies are canceled immediately.
+async function probeMediaSize(tabId, candidate, fetchImpl = (typeof fetch === "function" ? fetch : null)) {
+  if (!candidate || !candidate.url || Number(candidate.size) > 0) return Number(candidate && candidate.size) || 0;
+  const isDirectMedia = candidate.sourceType === SourceType.DIRECT_PROGRESSIVE || candidate.streamType === "HTTP_FILE";
+  if (!isDirectMedia || !/^https?:\/\//i.test(candidate.url) || typeof fetchImpl !== "function") return 0;
+  const now = Date.now();
+  if (candidate.sizeProbeAt && now - candidate.sizeProbeAt < 300000) return 0;
+  const key = candidate.url;
+  if (G.sizeProbeInFlight.has(key)) return G.sizeProbeInFlight.get(key);
+
+  candidate.sizeStatus = "checking";
+  candidate.sizeProbeAt = now;
+  const probe = (async () => {
+    let resolvedSize = 0;
+    const headers = {};
+    const auth = candidate.headers && (candidate.headers.Authorization || candidate.headers.authorization);
+    if (auth) headers.Authorization = auth;
+    const referrer = /^https?:\/\//i.test(candidate.tabUrl || "") ? candidate.tabUrl : undefined;
+    const requestOptions = { credentials: "include", cache: "no-store", redirect: "follow", referrer };
+    const readSize = (response) => {
+      if (!response || !response.headers) return 0;
+      const range = response.headers.get("content-range") || "";
+      const rangeMatch = range.match(/bytes\s+\d+-\d+\/(\d+)/i);
+      if (rangeMatch) return Number(rangeMatch[1]) || 0;
+      const length = Number(response.headers.get("content-length")) || 0;
+      return Number.isSafeInteger(length) && length > 0 ? length : 0;
+    };
+    const request = async (method, extraHeaders = {}) => {
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 4500) : null;
+      try {
+        return await fetchImpl(candidate.url, Object.assign({}, requestOptions, {
+          method,
+          headers: Object.assign({}, headers, extraHeaders),
+          signal: controller ? controller.signal : undefined
+        }));
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+    try {
+      const head = await request("HEAD");
+      if (head && head.ok) resolvedSize = readSize(head);
+    } catch (_) {}
+    if (!resolvedSize) {
+      try {
+        const ranged = await request("GET", { Range: "bytes=0-0" });
+        if (ranged && ranged.ok) resolvedSize = readSize(ranged);
+        if (ranged && ranged.body && typeof ranged.body.cancel === "function") {
+          try { await ranged.body.cancel(); } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    const current = G.cacheData.get(tabId) || [];
+    const stillCurrent = current.some(item => item === candidate || (item.candidateId && item.candidateId === candidate.candidateId));
+    if (stillCurrent) {
+      candidate.sizeStatus = resolvedSize > 0 ? "known" : "unknown";
+      if (resolvedSize > 0) {
+        candidate.size = resolvedSize;
+        for (const quality of (candidate.qualities || [])) {
+          if (!Number(quality.size)) quality.size = resolvedSize;
+        }
+      }
+      persistSessionState().catch(() => {});
+      notifyPopupMediaUpdated(tabId);
+    }
+    return resolvedSize;
+  })().catch(() => 0).finally(() => G.sizeProbeInFlight.delete(key));
+  G.sizeProbeInFlight.set(key, probe);
+  return probe;
+}
+
 function resolveEffectiveTabId(details) {
   if (details && typeof details.tabId === "number" && details.tabId > 0) {
     return details.tabId;
@@ -705,6 +796,9 @@ function onHeadersReceivedHandler(details) {
   const res = addOrDeduplicateMediaCandidate(effectiveTabId, candidate);
   if (res && res.candidate && (!res.candidate.qualities || res.candidate.qualities.length === 0)) {
     autoProbeManifestQualities(effectiveTabId, res.candidate).catch(() => {});
+  }
+  if (res && res.candidate && !Number(res.candidate.size) && typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+    probeMediaSize(effectiveTabId, res.candidate).catch(() => {});
   }
   updateTabBadge(effectiveTabId);
   persistSessionState().catch(() => {});
@@ -1602,6 +1696,11 @@ async function submitMediaCandidateToFlux(candidate, options = {}, customTranspo
   let effectiveFileName = candidate.fileName || "";
   if (effectiveFileName) {
     effectiveFileName = effectiveFileName.replace(/\s*\[\s*\d{3,4}p[_\w]*\s*\]/gi, "").trim();
+    const suffix = effectiveFileName.match(/\.([a-zA-Z0-9]+)$/);
+    if (!suffix || /^\d+$/.test(suffix[1])) {
+      const stem = suffix ? effectiveFileName.slice(0, -suffix[0].length) : effectiveFileName;
+      effectiveFileName = `${stem || "video"}.${defaultExt}`;
+    }
     if (effectiveResolution && effectiveResolution !== "Auto") {
       const extM = effectiveFileName.match(/\.([a-zA-Z0-9]+)$/);
       const curExt = extM ? extM[1] : defaultExt;
@@ -1823,7 +1922,7 @@ function handleRuntimeMessage(msg, sender, sendResponse) {
     : (sender && sender.tab && sender.tab.id ? sender.tab.id : 0);
 
   if (sender && sender.tab && sender.tab.id && sender.tab.url) {
-    G.tabUrlMap.set(sender.tab.id, sender.tab.url);
+    updateTabDocument(sender.tab.id, sender.tab.url);
   }
 
   if (msg.action === "getMediaList") {
@@ -1845,9 +1944,15 @@ function handleRuntimeMessage(msg, sender, sendResponse) {
       }
 
       const targetTabUrl = msg.tabUrl || G.tabUrlMap.get(resolvedTabId) || "";
+      if (resolvedTabId > 0 && targetTabUrl) updateTabDocument(resolvedTabId, targetTabUrl);
 
       // If no candidates are cached yet, probe the active tab content script (or YouTube watch URL)
       let currentList = G.cacheData.get(resolvedTabId) || [];
+      if (targetTabUrl && currentList.some(item => item && item.tabUrl && item.tabUrl !== targetTabUrl)) {
+        G.cacheData.delete(resolvedTabId);
+        currentList = [];
+        updateTabBadge(resolvedTabId);
+      }
       if (currentList.length === 0 && resolvedTabId > 0 && typeof chrome !== "undefined" && chrome.tabs && typeof chrome.tabs.sendMessage === "function") {
         try {
           await new Promise((resolve) => {
@@ -1858,6 +1963,11 @@ function handleRuntimeMessage(msg, sender, sendResponse) {
           });
         } catch (_) {}
         currentList = G.cacheData.get(resolvedTabId) || [];
+      }
+      for (const candidate of currentList) {
+        if (!Number(candidate.size) && typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+          probeMediaSize(resolvedTabId, candidate).catch(() => {});
+        }
       }
 
       if (currentList.length === 0 && isYouTubeWatchOrShortsUrl(targetTabUrl) && !isSiteDisabled(targetTabUrl) && !(G.playerErrors && G.playerErrors.has(resolvedTabId))) {
@@ -2041,6 +2151,9 @@ function handleRuntimeMessage(msg, sender, sendResponse) {
     if (res && res.candidate && (!res.candidate.qualities || res.candidate.qualities.length === 0)) {
       autoProbeManifestQualities(tabId, res.candidate).catch(() => {});
     }
+  if (res && res.candidate && !Number(res.candidate.size) && typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+    probeMediaSize(tabId, res.candidate).catch(() => {});
+  }
     updateTabBadge(tabId);
     persistSessionState().catch(() => {});
     notifyPopupMediaUpdated(tabId);
@@ -2585,16 +2698,7 @@ if (typeof chrome !== "undefined") {
       chrome.webRequest.onBeforeRequest.addListener(
         (details) => {
           if (details && details.type === "main_frame" && details.tabId > 0 && details.url) {
-            const prevUrl = G.tabUrlMap.get(details.tabId) || "";
-            const normPrev = prevUrl.split("#")[0];
-            const normNext = details.url.split("#")[0];
-            G.tabUrlMap.set(details.tabId, details.url);
-            if (normPrev && normPrev !== normNext) {
-              G.cacheData.delete(details.tabId);
-              if (G.playerErrors) G.playerErrors.delete(details.tabId);
-              if (G.blobMediaMap) G.blobMediaMap.delete(details.tabId);
-              updateTabBadge(details.tabId);
-            }
+            updateTabDocument(details.tabId, details.url);
           }
         },
         { urls: ["*://*/*"] }
@@ -2633,6 +2737,20 @@ if (typeof chrome !== "undefined") {
     );
   }
 
+  // History API and fragment navigation are the page transitions used by
+  // many SPA video sites. Scope these updates to the tab reported by the API.
+  if (chrome.webNavigation) {
+    const handleDocumentNavigation = (details) => {
+      if (details && details.frameId === 0) updateTabDocument(details.tabId, details.url);
+    };
+    if (chrome.webNavigation.onHistoryStateUpdated) {
+      chrome.webNavigation.onHistoryStateUpdated.addListener(handleDocumentNavigation, { url: [{ schemes: ["http", "https"] }] });
+    }
+    if (chrome.webNavigation.onReferenceFragmentUpdated) {
+      chrome.webNavigation.onReferenceFragmentUpdated.addListener(handleDocumentNavigation, { url: [{ schemes: ["http", "https"] }] });
+    }
+  }
+
   // Runtime Message Listener
   if (chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(handleRuntimeMessage);
@@ -2665,12 +2783,7 @@ if (typeof chrome !== "undefined") {
     if (chrome.tabs.onUpdated) {
       chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         if (tab && tab.url) {
-          const prevUrl = G.tabUrlMap.get(tabId) || "";
-          G.tabUrlMap.set(tabId, tab.url);
-          if (prevUrl && prevUrl.split("#")[0] !== tab.url.split("#")[0]) {
-            G.cacheData.delete(tabId);
-            if (G.playerErrors) G.playerErrors.delete(tabId);
-          }
+          updateTabDocument(tabId, tab.url);
         }
         if (changeInfo && changeInfo.status === "complete") {
           updateTabBadge(tabId);
@@ -2702,6 +2815,8 @@ if (typeof module !== "undefined" && module.exports) {
     ensureSessionRestored,
     sendNativeRpc,
     updateTabBadge,
+    updateTabDocument,
+    probeMediaSize,
     onBeforeSendHeadersHandler,
     onHeadersReceivedHandler,
     onDownloadCreatedHandler,

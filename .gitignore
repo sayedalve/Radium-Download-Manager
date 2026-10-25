@@ -82,3 +82,11 @@ benchmarks/test_*
 benchmarks/real_internet_work/
 benchmarks/fixtures/temp_*
 
+
+# Local helper scripts and artifacts
+*.torrent
+*.png
+clean_status.py
+patch_tests.py
+update_dialog.py
+

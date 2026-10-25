@@ -301,11 +301,40 @@ void SegmentScheduler::SetMaxConnections(uint32_t conns) {
 void SegmentScheduler::ReduceConnectionsByHalf() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_max_connections = std::max(1u, m_max_connections / 2u);
+    m_consecutive_successes = 0;
+}
+
+void SegmentScheduler::ReduceConnectionsStepped() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    // Conservative multi-tier backdown: 32 -> 16 -> 8 -> 4 -> 3 -> 2 -> 1
+    // Rather than immediately halving from 3 to 1 or 4 to 2 to 1, gracefully descend
+    if (m_max_connections > 8) {
+        m_max_connections /= 2u;
+    } else if (m_max_connections > 3) {
+        m_max_connections -= 1u;
+    } else if (m_max_connections > 1) {
+        m_max_connections -= 1u;
+    }
+    m_consecutive_successes = 0;
+}
+
+void SegmentScheduler::TryRampUpConnections(uint32_t ceiling_conns) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_max_connections < ceiling_conns) {
+        ++m_max_connections;
+    }
+    m_consecutive_successes = 0;
 }
 
 void SegmentScheduler::ResetConsecutiveFailures() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_consecutive_failures = 0;
+}
+
+void SegmentScheduler::RecordSuccess() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_consecutive_failures = 0;
+    ++m_consecutive_successes;
 }
 
 uint32_t SegmentScheduler::IncrementConsecutiveFailures() {

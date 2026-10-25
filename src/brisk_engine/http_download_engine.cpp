@@ -740,6 +740,7 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                     if (cur_pos > last_progress_offset) {
                         last_progress_offset = cur_pos;
                         retries = 0;
+                        scheduler.RecordSuccess();
                     }
 
                     if (!res.ok()) {
@@ -748,7 +749,7 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
 
                         if (res.error->code == "ERR_HTTP_429_RATE_LIMITED") {
                             disable_splitting.store(true);
-                            scheduler.ReduceConnectionsByHalf();
+                            scheduler.ReduceConnectionsStepped();
                             retry_after_ms = (captured_retry_after_sec > 0)
                                                 ? (captured_retry_after_sec * 1000)
                                                 : 2000;
@@ -841,7 +842,7 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
 
         uint32_t spawned = target_initial;
         while (!scheduler.AllCompleted() && !fatal_abort.load() && !pause_requested.load() && !cancel_requested.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
             uint32_t dynamic_max = std::min(max_conns, scheduler.GetMaxConnections());
             if (running_workers.load() < dynamic_max && spawned < 256 &&
@@ -849,14 +850,13 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                 workers.emplace_back(worker_fn, spawned++);
             }
 
-            uint64_t dl = scheduler.TotalDownloadedBytes();
-            task.downloaded_bytes = dl;
-            task.segments = scheduler.GetSnapshots();
-            task.status_detail = "Downloading (" + std::to_string(scheduler.ActiveWorkerCount()) + " active connections)";
-
             auto now = std::chrono::steady_clock::now();
             auto diff_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_sp_tp).count();
             if (diff_ms >= 100) {
+                uint64_t dl = scheduler.TotalDownloadedBytes();
+                task.downloaded_bytes = dl;
+                task.segments = scheduler.GetSnapshots();
+                task.status_detail = "Downloading (" + std::to_string(scheduler.ActiveWorkerCount()) + " active connections)";
                 uint64_t delta_bytes = (dl >= last_sp_bytes) ? (dl - last_sp_bytes) : 0;
                 uint64_t inst_speed = (delta_bytes * 1000ULL) / std::max<int64_t>(1, diff_ms);
                 if (current_speed == 0) {
@@ -866,21 +866,21 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                 }
                 last_sp_bytes = dl;
                 last_sp_tp = now;
-            }
 
-            if (on_progress) {
-                EngineProgress ep;
-                ep.task_id = task.task_id;
-                ep.state = TaskState::kDownloading;
-                ep.downloaded_bytes = dl;
-                ep.total_bytes = total_bytes;
-                ep.speed_bps = current_speed;
-                ep.range_supported = true;
-                ep.resolved_filename = task.file_name;
-                ep.etag = task.etag;
-                ep.last_modified = task.last_modified;
-                ep.segments = task.segments;
-                on_progress(ep);
+                if (on_progress) {
+                    EngineProgress ep;
+                    ep.task_id = task.task_id;
+                    ep.state = TaskState::kDownloading;
+                    ep.downloaded_bytes = dl;
+                    ep.total_bytes = total_bytes;
+                    ep.speed_bps = current_speed;
+                    ep.range_supported = true;
+                    ep.resolved_filename = task.file_name;
+                    ep.etag = task.etag;
+                    ep.last_modified = task.last_modified;
+                    ep.segments = task.segments;
+                    on_progress(ep);
+                }
             }
         }
 

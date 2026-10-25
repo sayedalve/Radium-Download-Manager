@@ -1,11 +1,11 @@
-# Flux Desktop UI Design System (`src/ui/design_system.hpp` & `src/ui/win32_main_window.cpp`)
+# Radium Desktop UI Design System (`src/ui/design_system.hpp` & `src/ui/win32_main_window.cpp`)
 
 ## 1. Visual Direction & Design Philosophy
 
 Flux Download Manager's desktop interface is engineered as a native, high-performance Windows 11 desktop application (`WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN`) rendered via double-buffered Win32 GDI and Direct2D primitives (`src/ui/design_system.hpp`, `src/ui/win32_main_window.cpp`) and backed by a platform-independent view-model (`openidm::ui::DesktopView`).
 
 Key design principles:
-- **Preserved Flux Brand Identity**: Warm matte charcoal canvas (`#161618`), dark charcoal surfaces (`#1E1E22`), elevated floating cards (`#28282E`), subtle architectural borders (`#2E2F35`), crisp light typography (`#F2F2F3` / `#E2E8F0`), and the iconic signature **Coral Red** accent (`#FF4F57`).
+- **Preserved Radium Brand Identity**: Warm matte charcoal canvas (`#161618`), dark charcoal surfaces (`#1E1E22`), elevated floating cards (`#28282E`), subtle architectural borders (`#35353D`), crisp light typography (`#F2F2F3` / `#B4B4BD`), and the signature **Coral Red** accent (`#FF4757`).
 - **Authentic Glassmorphism Architecture**:
   - Genuine translucency rendered via Windows 11 Desktop Window Manager (DWM) composition backdrops: Mica (`DWMWA_SYSTEMBACKDROP_TYPE = 2`) on the main window and Acrylic (`DWMWA_SYSTEMBACKDROP_TYPE = 3`) on transient dialogs, with `DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND (33 = 2)`.
   - True 32-bit premultiplied ARGB DIBSection composition blended onto the destination device context using Win32 `msimg32.lib`'s `AlphaBlend`. Never uses fake solid lighter colors in place of transparency.
@@ -17,30 +17,37 @@ Key design principles:
 
 ## 2. Color Tokens & Glass Palette (`openidm::ui::ThemePalette`)
 
-Flux provides three theme modes (`ThemeMode::kDark`, `ThemeMode::kLight`, and `ThemeMode::kSystem`), persisted in SQLite (`settings.theme`) and synchronized with Windows 11 `DWMWA_USE_IMMERSIVE_DARK_MODE`.
+Radium provides three theme modes (`ThemeMode::kDark`, `ThemeMode::kLight`, and `ThemeMode::kSystem`), persisted in SQLite (`settings.theme`) and synchronized with Windows 11 `DWMWA_USE_IMMERSIVE_DARK_MODE`. The default `coral_dark` and its `coral`, `charcoal`, and `dark` aliases resolve to the Coral Dark palette; `classic_blue` and `cosmic_blue` remain explicit legacy compatibility themes.
 
 | Token Name | Dark Theme (Default) | Redesign Theme | Light Theme | Purpose |
 |---|---|---|---|---|
-| `app_background` | `#161618` | `#161618` | `#F8FAFC` | Main window canvas and cosmic starfield backdrop |
+| `app_background` | `#161618` | `#161618` | `#F8FAFC` | Main window canvas and calm static backdrop |
 | `surface_primary` | `#1E1E22` | `#1E1E22` | `#FFFFFF` | Main toolbar container and search control |
 | `surface_elevated` | `#28282E` | `#28282E` | `#F1F5F9` | Secondary toolbar buttons, dialog cards, and status bar |
-| `surface_hover` | `#32323A` | `#32323A` | `#E2E8F0` | Interactive row, action button, and tab hover state |
-| `surface_selected` | `#2D2528` | `#2D2528` | `#DBEAFE` | Selected download row and active settings category |
+| `surface_hover` | `#2B2B32` | `#2B2B32` | `#E2E8F0` | Interactive row, action button, and tab hover state |
+| `surface_selected` | `#302328` | `#302328` | `#DBEAFE` | Selected download row and active settings category |
 | `border_subtle` | `#2E2F35` | `#2E2F35` | `#CBD5E1` | 1px structural dividers and panel borders |
-| `border_focus` | `#FF4F57` | `#FF4F57` | `#FF4F57` | 2px keyboard focus ring and active input highlight |
+| `border_focus` | `#FF4757` | `#FF4757` | `#FF4757` | 2px keyboard focus ring and active input highlight |
 | `text_primary` | `#F2F2F3` | `#F2F2F3` | `#0F172A` | Primary filenames, dialog titles, and active labels |
-| `text_secondary` | `#9B9BA1` | `#9B9BA1` | `#475569` | Column headers, transfer sizes, timestamps, and details metadata |
-| `text_muted` | `#686870` | `#686870` | `#94A3B8` | Disabled buttons, hints, and secondary units |
-| `accent_primary` | `#FF4F57` | `#FF4F57` | `#FF4F57` | Signature Flux Coral Red action accent and progress fills |
-| `accent_hover` | `#FF6B72` | `#FF6B72` | `#FF353E` | Primary action button hover state |
+| `text_secondary` | `#B4B4BD` | `#B4B4BD` | `#475569` | Column headers, transfer sizes, timestamps, and details metadata |
+| `text_muted` | `#85858F` | `#85858F` | `#94A3B8` | Disabled buttons, hints, and secondary units |
+| `accent_primary` | `#FF4757` | `#FF4757` | `#FF4757` | Signature Radium Coral Red action accent and progress fills |
+| `accent_hover` | `#FF5F6A` | `#FF5F6A` | `#FF353E` | Primary action button hover state |
 | `glass_surface` | `rgba(30,30,34, 180)` | `rgba(30,30,34, 180)` | `rgba(255,255,255, 180)` | Translucent glass panel fill (AlphaBlend DIB) |
 | `glass_elevated` | `rgba(40,40,46, 210)` | `rgba(40,40,46, 210)` | `rgba(240,244,248, 210)` | Translucent floating card and modal dialog card fill |
 | `glass_border` | `rgba(255,255,255, 20)` | `rgba(255,255,255, 20)` | `rgba(0,0,0, 18)` | Fine low-contrast glass perimeter border |
 | `glass_highlight` | `rgba(255,255,255, 26)` | `rgba(255,255,255, 26)` | `rgba(255,255,255, 45)` | Refractive top-edge specular highlight |
-| `status_success` | `#22C55E` | `#22C55E` | `#16A34A` | `Completed` state indicator |
-| `status_warning` | `#F59E0B` | `#F59E0B` | `#D97706` | `Paused` / `Retrying` state indicator |
-| `status_danger` | `#EF4444` | `#EF4444` | `#DC2626` | `Failed` / `Error` state indicator |
-| `progress_track` | `#1E293B` | `#1E293B` | `#E2E8F0` | Unfilled progress bar track |
+| `status_success` | `#A9B4C2` | `#A9B4C2` | `#7D8A99` | `Completed` state indicator and fill |
+| `status_warning` | `#F2B84B` | `#F2B84B` | `#D97706` | `Paused` / scheduled state indicator and fill |
+| `status_danger` | `#FF9F43` | `#FF9F43` | `#D97A24` | `Failed` / canceled state indicator and fill |
+| `progress_track` | `#303036` | `#303036` | `#E2E8F0` | Unfilled progress bar track |
+
+### 2.1 Interaction and download-state behavior
+
+- `Downloading`, probing, merging, verifying, and finalizing use the Coral accent for their status indicator and progress fill.
+- `Completed` uses muted neutral `#A9B4C2`; `Paused` and scheduled work use `#F2B84B`; failed and canceled work uses orange `#FF9F43`; queued work uses the muted neutral indicator and track.
+- Hovered rows use `surface_hover`. Selected rows use the warm `surface_selected` fill plus a narrow Coral indicator on the left edge, preserving readable status text.
+- Toolbar controls use `surface_primary`/`surface_elevated` for normal states, `surface_hover` for hover, `surface_pressed` for pressed, and `border_focus` for keyboard focus. Disabled controls retain readable muted text.
 
 ---
 
@@ -145,6 +152,12 @@ When a download row is selected, a floating rounded glass card (`card_radius = S
 6. **System Tray Integration (`Shell_NotifyIconW`)**:
    - Supports `Show Flux`, `Hide to Tray`, `Pause All Downloads`, `Resume All Downloads`, and `Exit Flux`, honoring `close_to_tray` on `WM_CLOSE`.
 
+### G. Download Setup Dialog Consistency
+- New Download, Add Torrent, and Remove Download share the matte charcoal canvas and `accent_primary` coral (`#FF4757`) for primary actions, focus borders, and selected-file indicators.
+- New Download and Add Torrent use matching inset edit styling with a subtle default border and coral focus state. Torrent selections use the warm `surface_selected` fill with a coral edge indicator.
+- Section dividers combine a muted rule with a short coral segment. Secondary actions remain on elevated charcoal surfaces so coral stays reserved for primary and selected states.
+- Add Torrent section headings must keep a clear text-line gap before their controls at each DPI. Remove Download action buttons use centered, DPI-scaled widths sufficient to show their complete labels.
+
 ---
 
 ## 5. Accessibility & Keyboard Navigation
@@ -157,3 +170,12 @@ When a download row is selected, a floating rounded glass card (`card_radius = S
   - `F5`: Retry a failed or canceled download.
   - `Enter`: Open a completed file.
 - **No Emoji Policy**: All icons and badges use geometric vector primitives or accessible text labels (`FILE`, `HLS STREAM`, `DASH STREAM`) compatible with Windows Narrator.
+
+### New Download field spacing update
+
+The native New Download dialog now reserves a full label line and gap before each edit or combo control. Field rows and the lower metadata, scheduling, and action controls are shifted together using the existing DPI scale helper. Labels remain painted above their inputs; input borders and keyboard focus styles remain intact.
+
+### Context menu state filtering
+
+Task context menus omit disabled transfer actions and present only the action appropriate to the selected task state, with Cancel retained when available. Seeding control is available from More Actions only for completed torrents with uploaded bytes.
+

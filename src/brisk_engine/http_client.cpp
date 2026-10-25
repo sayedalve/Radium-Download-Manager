@@ -756,6 +756,10 @@ Result<HttpResponseMeta> HttpClient::PerformGet(
         int recv_timeout = std::clamp(timeout_ms, 5000, 20000);
         WinHttpSetTimeouts(hSession, resolve_timeout, connect_timeout, send_timeout, recv_timeout);
 
+        // Enable modern HTTP/2 protocol flag for multiplexing and TCP efficiency on supported Windows versions
+        DWORD http_protocols = WINHTTP_PROTOCOL_FLAG_HTTP2;
+        WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &http_protocols, sizeof(http_protocols));
+
         std::wstring whost = Utf8ToWide(pu.host);
         HINTERNET hConnect = WinHttpConnect(hSession, whost.c_str(), pu.port, 0);
         if (!hConnect) {
@@ -916,19 +920,20 @@ Result<HttpResponseMeta> HttpClient::PerformGet(
         }
 
         uint64_t bytes_delivered = 0;
-        std::vector<uint8_t> rbuf(262144);
+        constexpr size_t kSocketBufSize = 262144;
+        auto rbuf = std::make_unique<uint8_t[]>(kSocketBufSize);
         while (!meta.has_content_length || bytes_delivered < meta.content_length) {
             if (cancel_flag.load()) {
                 cleanup_winhttp();
                 return Result<HttpResponseMeta>::Err("ERR_CANCELED", "Transfer canceled");
             }
             DWORD bytes_read = 0;
-            if (!WinHttpReadData(hRequest, rbuf.data(), static_cast<DWORD>(rbuf.size()), &bytes_read)) {
+            if (!WinHttpReadData(hRequest, rbuf.get(), static_cast<DWORD>(kSocketBufSize), &bytes_read)) {
                 cleanup_winhttp();
                 return Result<HttpResponseMeta>::Err("ERR_NET_TIMEOUT", "WinHttpReadData timeout or error", true, true);
             }
             if (bytes_read == 0) break;
-            if (on_chunk && !on_chunk(rbuf.data(), bytes_read)) {
+            if (on_chunk && !on_chunk(rbuf.get(), bytes_read)) {
                 cleanup_winhttp();
                 return Result<HttpResponseMeta>::Err("ERR_CONSUMER_ABORTED", "Body consumer aborted transfer");
             }

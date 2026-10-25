@@ -295,7 +295,7 @@ async function runBrowserRuntimeTests() {
     console.log("  -> PASS: Download capture and verified outcome demonstrated successfully");
 
     // Suite 3: Media Detection & Shadow DOM Video Overlay Attachment
-    console.log(`\n[Suite 3/7] Testing HTML5 Video Detection & Shadow DOM Overlay Pill...`);
+    console.log(`\n[Suite 3/7] Testing HTML5 Video Detection & Compact Above-Player Toolbar...`);
     const videoPage = await context.newPage();
     await videoPage.goto(`${baseUrl}/video.html`, { waitUntil: "networkidle" });
 
@@ -306,8 +306,12 @@ async function runBrowserRuntimeTests() {
 
     const hostBox = await shadowHost.boundingBox();
     console.log(`  Shadow Host Bounding Box: x=${hostBox.x}, y=${hostBox.y}, w=${hostBox.width}, h=${hostBox.height}`);
-    if (!hostBox || hostBox.width < 100 || hostBox.height < 25) {
+    if (!hostBox || hostBox.width < 80 || hostBox.width > 180 || hostBox.height < 20 || hostBox.height > 32) {
       throw new Error(`Shadow host dimensions too small or missing: ${JSON.stringify(hostBox)}`);
+    }
+    const videoBox = await videoPage.locator("video").boundingBox();
+    if (!videoBox || hostBox.y + hostBox.height > videoBox.y + 1 || Math.abs(hostBox.x - videoBox.x) > 2) {
+      throw new Error(`Compact toolbar is not aligned above the player: host=${JSON.stringify(hostBox)} video=${JSON.stringify(videoBox)}`);
     }
 
     // Verify video element marked with overlay attached attribute
@@ -347,6 +351,23 @@ async function runBrowserRuntimeTests() {
       throw new Error("Expected video URL 'source.mp4' was not registered in extension media candidates!");
     }
     console.log(`  [OK] Candidate 'source.mp4' strictly verified in extension candidate registry`);
+
+    const mediaTab = (videoCandidate.dump || []).find(entry =>
+      (entry.urls || []).some(url => url && url.includes("source.mp4"))
+    );
+    if (!mediaTab) throw new Error("Could not determine owning tab for the detected media candidate");
+    await videoPage.evaluate(() => history.pushState({}, "", "/video-page-two"));
+    let oldPageCleared = false;
+    for (let attempt = 0; attempt < 20; ++attempt) {
+      oldPageCleared = await serviceWorker.evaluate((tabId) => {
+        const list = G && G.cacheData ? (G.cacheData.get(tabId) || []) : [];
+        return !list.some(item => item.url && item.url.includes("source.mp4"));
+      }, mediaTab.tabId);
+      if (oldPageCleared) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (!oldPageCleared) throw new Error("SPA History API navigation retained media from the previous document");
+    console.log("  [OK] SPA History API navigation cleared prior-page media for its own tab");
 
     await videoPage.screenshot({ path: path.join(ARTIFACTS_DIR, "video-overlay.png") });
     console.log("  -> PASS: HTML5 video detected, overlay badge attached, and media candidate registered");

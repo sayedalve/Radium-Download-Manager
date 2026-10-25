@@ -143,6 +143,16 @@ Result<std::string> TaskImportExport::ExportTasksToString(
             obj["downloadedBytes"] = static_cast<double>(t.downloaded_bytes);
             obj["state"] = TaskStateToString(t.state);
             obj["createdAtMs"] = static_cast<double>(t.created_at_ms);
+            if (!t.torrent_file_paths.empty()) {
+                json::Array selection;
+                for (size_t selection_index = 0; selection_index < t.torrent_file_paths.size(); ++selection_index) {
+                    json::Value entry(json::Object{});
+                    entry["path"] = t.torrent_file_paths[selection_index];
+                    entry["selected"] = selection_index < t.torrent_file_selection.size() && t.torrent_file_selection[selection_index] != 0;
+                    selection.push_back(std::move(entry));
+                }
+                obj["torrentSelection"] = std::move(selection);
+            }
 
             json::Value hdrs(json::Object{});
             for (const auto& [k, v] : t.headers) {
@@ -165,15 +175,28 @@ Result<std::string> TaskImportExport::ExportTasksToString(
         out += "]\n";
         return Result<std::string>::Ok(out);
     } else {
-        std::string out = "URL,FileName,Category,Queue,TotalBytes,State\r\n";
+        std::string out = "URL,FileName,Category,Queue,TotalBytes,State,TorrentSelection\r\n";
         for (const auto& t : tasks) {
             std::string u = include_credentials ? t.url : ScrubUrlCredentials(t.url);
+            std::string selection_json;
+            if (!t.torrent_file_paths.empty()) {
+                json::Array selection;
+                for (size_t selection_index = 0; selection_index < t.torrent_file_paths.size(); ++selection_index) {
+                    json::Value entry(json::Object{});
+                    entry["path"] = t.torrent_file_paths[selection_index];
+                    entry["selected"] = selection_index < t.torrent_file_selection.size() &&
+                                         t.torrent_file_selection[selection_index] != 0;
+                    selection.push_back(std::move(entry));
+                }
+                selection_json = json::Value(std::move(selection)).dump();
+            }
             out += EscapeCsv(u) + "," +
                    EscapeCsv(t.file_name) + "," +
                    EscapeCsv(t.category) + "," +
                    EscapeCsv(t.queue_id) + "," +
                    std::to_string(t.total_bytes) + "," +
-                   EscapeCsv(TaskStateToString(t.state)) + "\r\n";
+                   EscapeCsv(TaskStateToString(t.state)) + "," +
+                   EscapeCsv(selection_json) + "\r\n";
         }
         return Result<std::string>::Ok(out);
     }
@@ -225,6 +248,13 @@ Result<std::vector<TaskModel>> TaskImportExport::ImportFromJson(std::string_view
         t.state = TaskState::kQueued;
         t.created_at_ms = NowEpochMs();
         t.updated_at_ms = t.created_at_ms;
+        if (item.contains("torrentSelection") && item["torrentSelection"].is_array()) {
+            for (const auto& entry : item["torrentSelection"].as_array()) {
+                if (!entry.is_object()) continue;
+                t.torrent_file_paths.push_back(entry["path"].as_string(""));
+                t.torrent_file_selection.push_back(entry["selected"].as_bool(true) ? 1 : 0);
+            }
+        }
 
         if (item.contains("headers") && item["headers"].is_object()) {
             for (const auto& [k, v] : item["headers"].as_object()) {
@@ -273,6 +303,20 @@ Result<std::vector<TaskModel>> TaskImportExport::ImportFromCsv(std::string_view 
             }
             if (cols.size() > 4 && !cols[4].empty()) {
                 t.total_bytes = static_cast<uint64_t>(std::strtoull(cols[4].c_str(), nullptr, 10));
+            }
+            if (cols.size() > 6 && !cols[6].empty()) {
+                try {
+                    auto selection = json::Parse(cols[6]);
+                    if (selection.is_array()) {
+                        for (const auto& entry : selection.as_array()) {
+                            if (!entry.is_object()) continue;
+                            t.torrent_file_paths.push_back(entry["path"].as_string(""));
+                            t.torrent_file_selection.push_back(entry["selected"].as_bool(true) ? 1 : 0);
+                        }
+                    }
+                } catch (const std::exception&) {
+                    return Result<std::vector<TaskModel>>::Err("ERR_CSV_IMPORT", "Invalid TorrentSelection JSON");
+                }
             }
             t.save_dir = PathSanitizer::GetDefaultDownloadDir().string();
             t.state = TaskState::kQueued;

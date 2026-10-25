@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// OpenIDM / Flux — BitTorrent Peer Wire Protocol (BEP 3, BEP 23, BEP 52)
+// OpenIDM / Flux â€” BitTorrent Peer Wire Protocol (BEP 3, BEP 23, BEP 52)
 // Direct reuse of aria2 BitTorrent wire framing, handshake, and compact peer unpacking algorithms
 #pragma once
 
@@ -39,8 +39,22 @@ enum class BtMessageId : uint8_t {
     kRequest = 6,
     kPiece = 7,
     kCancel = 8,
-    kPort = 9
+    kPort = 9,
+    kSuggestPiece = 13,
+    kHaveAll = 14,
+    kHaveNone = 15,
+    kRejectRequest = 16,
+    kAllowedFast = 17,
+    kExtended = 20
 };
+
+// Extension Protocol Message IDs (BEP 10)
+constexpr uint8_t kExtHandshakeId = 0;
+
+// Extension sub-messages for BEP 9 (ut_metadata)
+constexpr int64_t kUtMetadataRequest = 0;
+constexpr int64_t kUtMetadataData = 1;
+constexpr int64_t kUtMetadataReject = 2;
 
 struct PeerEndpoint {
     std::string ip;
@@ -53,7 +67,8 @@ struct BtMessage {
     uint32_t piece_index{0};
     uint32_t block_begin{0};
     uint32_t block_length{0};
-    std::vector<uint8_t> payload; // For Bitfield or Piece data
+    uint8_t ext_id{0};            // For Extended message (BEP 10)
+    std::vector<uint8_t> payload; // For Bitfield, Piece, or Extended data
 };
 
 class PeerWireProtocol {
@@ -204,6 +219,57 @@ public:
         return msg;
     }
 
+    // BEP 10 Extended message creation
+    static std::vector<uint8_t> CreateExtendedMessage(uint8_t ext_id, const uint8_t* payload, size_t payload_len) {
+        std::vector<uint8_t> msg(6 + payload_len, 0);
+        WriteUint32BE(msg.data(), static_cast<uint32_t>(2 + payload_len));
+        msg[4] = static_cast<uint8_t>(BtMessageId::kExtended);
+        msg[5] = ext_id;
+        if (payload && payload_len > 0) {
+            std::memcpy(&msg[6], payload, payload_len);
+        }
+        return msg;
+    }
+
+    // BEP 10 Extended Handshake (supports ut_metadata = 1, metadata_size)
+    static std::vector<uint8_t> CreateExtendedHandshake(uint32_t ut_metadata_id = 1, uint64_t metadata_size = 0) {
+        BencodeValue root = BencodeValue::MakeDict();
+        BencodeValue m = BencodeValue::MakeDict();
+        m.as_dict()["ut_metadata"] = BencodeValue(static_cast<int64_t>(ut_metadata_id));
+        root.as_dict()["m"] = std::move(m);
+        root.as_dict()["v"] = BencodeValue("Radium 0.3.2");
+        if (metadata_size > 0) {
+            root.as_dict()["metadata_size"] = BencodeValue(static_cast<int64_t>(metadata_size));
+        }
+        std::string enc = BencodeParser::Encode(root);
+        return CreateExtendedMessage(kExtHandshakeId, reinterpret_cast<const uint8_t*>(enc.data()), enc.size());
+    }
+
+    // BEP 9 ut_metadata Request (msg_type = 0)
+    static std::vector<uint8_t> CreateUtMetadataRequest(uint8_t peer_ut_metadata_id, uint32_t piece_idx) {
+        BencodeValue d = BencodeValue::MakeDict();
+        d.as_dict()["msg_type"] = BencodeValue(kUtMetadataRequest);
+        d.as_dict()["piece"] = BencodeValue(static_cast<int64_t>(piece_idx));
+        std::string enc = BencodeParser::Encode(d);
+        return CreateExtendedMessage(peer_ut_metadata_id, reinterpret_cast<const uint8_t*>(enc.data()), enc.size());
+    }
+
+    // BEP 9 ut_metadata Data (msg_type = 1)
+    static std::vector<uint8_t> CreateUtMetadataData(uint8_t peer_ut_metadata_id, uint32_t piece_idx, uint64_t total_size, const uint8_t* piece_data, size_t piece_len) {
+        BencodeValue d = BencodeValue::MakeDict();
+        d.as_dict()["msg_type"] = BencodeValue(kUtMetadataData);
+        d.as_dict()["piece"] = BencodeValue(static_cast<int64_t>(piece_idx));
+        d.as_dict()["total_size"] = BencodeValue(static_cast<int64_t>(total_size));
+        std::string bencode_header = BencodeParser::Encode(d);
+
+        std::vector<uint8_t> payload(bencode_header.size() + piece_len);
+        std::memcpy(payload.data(), bencode_header.data(), bencode_header.size());
+        if (piece_data && piece_len > 0) {
+            std::memcpy(payload.data() + bencode_header.size(), piece_data, piece_len);
+        }
+        return CreateExtendedMessage(peer_ut_metadata_id, payload.data(), payload.size());
+    }
+
     // Message parsing from framed bytes (length prefix + ID + payload)
     static std::optional<BtMessage> ParseMessage(const uint8_t* data, size_t len) {
         if (len < 4) return std::nullopt;
@@ -256,6 +322,44 @@ public:
                     msg.block_begin = ReadUint32BE(&data[9]);
                     msg.block_length = payload_len - 9;
                     msg.payload.assign(&data[13], &data[4 + payload_len]);
+                    return msg;
+                }
+                break;
+
+            case BtMessageId::kExtended:
+                if (payload_len >= 2) {
+                    msg.ext_id = data[5];
+                    if (payload_len > 2) {
+                        msg.payload.assign(&data[6], &data[4 + payload_len]);
+                    }
+                    return msg;
+                }
+                break;
+
+            case BtMessageId::kHaveAll:
+            case BtMessageId::kHaveNone:
+                return msg;
+
+            case BtMessageId::kSuggestPiece:
+            case BtMessageId::kAllowedFast:
+                if (payload_len >= 5) {
+                    msg.piece_index = ReadUint32BE(&data[5]);
+                    return msg;
+                }
+                break;
+
+            case BtMessageId::kRejectRequest:
+                if (payload_len >= 13) {
+                    msg.piece_index = ReadUint32BE(&data[5]);
+                    msg.block_begin = ReadUint32BE(&data[9]);
+                    msg.block_length = ReadUint32BE(&data[13]);
+                    return msg;
+                }
+                break;
+
+            case BtMessageId::kPort:
+                if (payload_len >= 3) {
+                    msg.block_begin = ReadUint16BE(&data[5]); // store port in block_begin
                     return msg;
                 }
                 break;

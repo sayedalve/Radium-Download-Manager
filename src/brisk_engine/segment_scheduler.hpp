@@ -69,7 +69,10 @@ public:
     uint32_t GetMaxConnections() const;
     void SetMaxConnections(uint32_t conns);
     void ReduceConnectionsByHalf();
+    void ReduceConnectionsStepped();
+    void TryRampUpConnections(uint32_t ceiling_conns);
     void ResetConsecutiveFailures();
+    void RecordSuccess();
     uint32_t IncrementConsecutiveFailures();
     uint32_t GetConsecutiveFailures() const;
 
@@ -80,6 +83,7 @@ private:
     uint64_t m_min_split_bytes{262144}; // Default 256 KiB min split remainder
     uint32_t m_next_segment_id{0};
     uint32_t m_consecutive_failures{0};
+    uint32_t m_consecutive_successes{0};
     std::vector<std::shared_ptr<LiveSegment>> m_segments;
 };
 

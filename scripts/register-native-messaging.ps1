@@ -68,9 +68,10 @@ if (-not $HostExePath) {
         )
     }
     $candidates += @(
+        # Prefer the staged executable: clean builds may remove build\win-x64.
+        (Join-Path $RepoRoot "dist\radium-nmh.exe"),
         (Join-Path $RepoRoot "build\win-x64\Release\radium-nmh.exe"),
         (Join-Path $RepoRoot "build\Release\radium-nmh.exe"),
-        (Join-Path $RepoRoot "dist\radium-nmh.exe"),
         (Join-Path $RepoRoot "radium-nmh.exe"),
         (Join-Path $RepoRoot "build\win-x64\Release\flux-nmh.exe"),
         (Join-Path $RepoRoot "build\Release\flux-nmh.exe"),

@@ -194,6 +194,8 @@ struct TaskModel {
     int64_t updated_at_ms{0};
     int64_t completed_at_ms{0};
     std::vector<Segment> segments;
+    std::vector<std::string> torrent_file_paths;
+    std::vector<uint8_t> torrent_file_selection;
 };
 
 struct QueueConfig {

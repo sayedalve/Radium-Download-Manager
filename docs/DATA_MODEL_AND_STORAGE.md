@@ -9,11 +9,16 @@
 
 ## 1. Storage Locations on Windows 11
 
+### Task removal consistency
+
+Task removal is serialized against worker completion. A worker is asked to stop and finish before owned partial data is cleaned. The controller deletes output only when the explicit permanent-delete action is selected; for multi-file torrents it deletes each selected metadata-relative payload path, not the display name used for the task row. Remove from List preserves completed user output. If partial cleanup, path validation, output deletion, or SQLite row deletion fails, the SQLite task row and in-memory task remain available for retry. After filesystem work succeeds, `SqliteStore::DeleteTask` must complete successfully before the task is removed from memory. SQLite step errors are returned to the caller rather than silently treated as success.
+
 | Path | Purpose | Access Control |
 | :--- | :--- | :--- |
 | `%LOCALAPPDATA%\\OpenIDM\\state.db` | Primary SQLite 3 database (`WAL` mode) storing tasks, segments, queues, and settings. | Standard Windows User Profile ACL. |
 | `%LOCALAPPDATA%\\OpenIDM\\state.db-wal` & `-shm` | SQLite Write-Ahead Log and shared-memory index files. | Standard Windows User Profile ACL. |
 | `%LOCALAPPDATA%\\OpenIDM\\tmp\\<task_uuid>\\` | Per-task working directory for `N_m3u8DL-RE.exe` (`@job.rsp`, `meta.json`, `.ts`/`.m4s` segments). | Explicit DACL: `D:P(A;;GA;;;SY)(A;;GA;;;<UserSID>)`. |
+| `%LOCALAPPDATA%\\OpenIDM\\tmp\\torrents\\<fetch_uuid>\\metainfo.torrent` | Browser-offered remote `.torrent` metainfo retained for the torrent task's resume/recovery; removed with its task-owned `part_path`. | Inherits the current user's `%LOCALAPPDATA%` ACL; metadata is capped at 16 MiB. |
 | `<destination_dir>\\<filename>.openidm.part` | In-progress pre-allocated partial file for ordinary HTTP downloads. | Inherits `<destination_dir>` ACL. |
 | `%LOCALAPPDATA%\\OpenIDM\\logs\\openidm.log` | Redacted rotating application log (`max 5 x 2 MiB`). | Standard Windows User Profile ACL. |
 
@@ -113,6 +118,10 @@ CREATE TABLE IF NOT EXISTS settings (
 ---
 
 ## 4. Crash Recovery & Startup Reconciliation Protocol (`NFR-005`)
+
+### 4.1 Torrent selection persistence
+
+For multi-file torrents, the selected relative paths and boolean selection state are persisted in the existing task stream-options JSON as `torrent_selection`. This avoids a schema migration while keeping selection tied to the task record. JSON import/export serializes the same data as `torrentSelection`; CSV uses an escaped `TorrentSelection` JSON column. On restore, paths are matched against the parsed torrent metadata by normalized relative path; unknown paths are ignored and an empty selection is rejected before the engine starts.
 
 When `openidm.exe` starts up (`DownloadController::InitializeFromStorage()`):
 1. **Wal Checkpoint:** SQLite automatically replays any committed frames in `state.db-wal`.

@@ -44,6 +44,7 @@ struct ControllerConfig {
     bool allow_loopback{false};
     int stall_timeout_ms{3000};
     uint64_t min_split_bytes{131072};
+    torrent::TorrentMetadataSelectionCallback torrent_metadata_selection_callback;
 };
 
 class DownloadController {
@@ -139,6 +140,9 @@ public:
     Result<AppSettings> RestoreDefaultSettings();
 
     const ControllerConfig& GetConfig() const { return m_cfg; }
+    // Installs the UI-side selector used when a magnet link obtains multi-file metadata.
+    // A null callback preserves the non-interactive/default-all behavior for headless clients.
+    void SetTorrentMetadataSelectionCallback(torrent::TorrentMetadataSelectionCallback callback);
     bool AreWorkersAvailable() const;
 
     // Sleep / wake & network change recovery (Phase 8)

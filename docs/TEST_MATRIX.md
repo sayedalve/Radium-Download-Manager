@@ -164,6 +164,15 @@
 
 ### 1.6 Release Security & Packaging Integrity Checks (`scripts/verify-release-security.ps1` — `5 / 5 PASSED`)
 
+### 1.7 Torrent selection and pause responsiveness
+
+| Scenario | Requirement | Verification category | Result |
+| :--- | :--- | :--- | :--- |
+| Multi-file torrent selection excludes unselected files, schedules only overlapping pieces, and reports selected-byte progress | Torrent file selection / selective storage | `Verified by Execution` (`TestPieceManagerAndBlockScheduling`) | **PASSED** |
+| Pause All, schedule edits, scheduler ticks, restart recovery, and explicit Resume All preserve user pause intent | Pause lifecycle / scheduler precedence | `Verified by Execution` (`TestPauseAllManualPauseScheduleAndRecovery`) | **REGRESSION TEST ADDED; active multi-engine GUI stress pending** |
+| Incoming BitTorrent handshake, verified-piece advertisement, requested-block response, and successful-upload byte accounting | BitTorrent seeding/upload | `Verified by Static Inspection; deterministic incoming-peer exchange pending` | **IMPLEMENTED IN SOURCE; BLOCK TRANSFER AND LIVE NETWORK VERIFICATION PENDING** |
+| Magnet BEP 9 metadata selection is marshalled to the Win32 UI thread and selected paths/mask are persisted before allocation | Magnet selective download | `Verified by Source Inspection; UI interaction pending` | **GUI DIALOG AND SELECTIVE OUTPUT VERIFICATION PENDING** |
+
 | Check # | Security Verification Scope (`scripts/verify-release-security.ps1`) | Threat Model & ADR Rule | Verification Category | Result |
 | :--- | :--- | :--- | :--- | :--- |
 | **`[1/5]`** | Authoritative SHA-256 Checksum Verification (`dist/SHA256SUMS.txt`) | `SEC-INTEG-01`, `ADR-0008` | `Verified by Execution` | **PASSED** |
@@ -184,3 +193,42 @@
 | **Clean Machine Installation** | Fresh Windows Host | Executed `python tests/test_installer_smoke.py`; verified silent install, real download with SHA256 match, and safe uninstall | **Verified by Execution** |
 | **Live Browser Extension Runtime** | Chromium (Playwright) | Executed `node tests/browser/test_extension_runtime.js`; verified download capture, video overlay pill, stream sniffing, and popup UI | **Verified by Execution** |
 | **Authenticode Code Signing** | Windows PE Binaries | Verified via `Get-AuthenticodeSignature`. In OSS community CI without private secrets, reported cleanly as Unsigned (non-elevated per-user execution) | **Verified by Execution (Unsigned OSS Baseline)** |
+
+## Extension navigation and player control regression coverage
+
+| Test | Coverage | Status |
+| :--- | :--- | :--- |
+| `test_extension_detection.js` suite 17 | Same-tab SPA page identity clears prior results; unrelated tab results remain; same-document refresh preserves current results; floating control geometry stays above and aligned to the player | Automated test added; live Brave multi-page validation pending |
+
+| Test | Coverage | Status |
+| :--- | :--- | :--- |
+| Extension suite 18 | Per-tab SPA scoping, unrelated-tab isolation, compact player toolbar geometry, range size probe/cancel, numeric media filename suffix | Passed in Node; Playwright Chromium runtime suite passed. Live Brave site tests pending. |
+| Native New Download dialog | Field label/input vertical separation at scaled DPI, action buttons remain within the fixed dialog client area | MSVC build and live screenshot verification pending |
+
+| Native New Download layout regression | Label/input and inter-row clearance at 96, 120, 144, 192, 288, and 384 DPI | Added C++ unit suite; rebuild and live visual verification pending |
+
+| Native setup dialog visual consistency | New Download, Add Torrent, and Remove Download share the charcoal/coral palette; torrent save, tags, and filter fields use modern focus borders; selected torrent entries use the warm selected surface and coral indicator | MSVC Release build passed; live visual verification pending |
+
+
+| Task context menu state filtering | State-appropriate actions avoid disabled Start/Pause/Resume/Retry entries on completed rows | C++ build and unit suite passed; refreshed native menu screenshot pending |
+
+
+| Brave extension restart audit | Fresh Brave launch, `brave://extensions` search, Default profile path, Preferences/Secure Preferences, extension cache and manifest | Radium is absent from the live extensions list; Secure Preferences alone retains a stale path entry while Preferences has no entry. Stable folder is staged; Load unpacked and restart verification requires action-time install confirmation. |
+
+### Task removal follow-up (2026-10-24)
+
+`TestModernCoralThemeSettingsModalBoundsAndSafeDelete` covers partial task cleanup, remove-from-list preserving an output, explicit permanent deletion, idempotent deletion when the output is already missing, persisted task removal after reopening storage, and (on Windows) a read-only output failure that must preserve both the file and task record before a successful retry. Rerun is required after these latest additions.
+
+Local `.torrent` open/drag and remote browser offers with a `.torrent` URL or suggested filename route to the dedicated Add Torrent selection dialog. Remote metainfo retrieval uses the offer headers, a 16 MiB body limit, and asynchronous UI dispatch; cancel removes the placeholder task and Add updates it with selected paths, category, destination, and start choice. Existing C++ regressions passed 71/71, but do not directly exercise this new UI route; live browser-offer, dialog, and controlled selective multi-file transfer checks remain pending.
+
+Task removal actions are distinct: the Delete key opens a compact chooser with Remove from List, Permanently Delete, and Cancel; context-menu and toolbar Remove from List remain direct list-removal actions. Delete File / Shift+Delete opens the same chooser. Permanent torrent deletion uses selected metadata-relative file paths and retains the task record if path validation or file removal fails. Native UI interaction remains unverified.
+
+### Dialog function audit (2026-10-25)
+
+The Add Torrent and Remove Download dialogs were statically audited and the Release build plus 71 C++ regression suites passed. Automated coverage exercises torrent parsing/transfer and controller-level removal/deletion safety, but does not click every dialog control or verify rendered spacing in a live window. Add Torrent file selection, Select All/None, filter, folder browse, category, start choice, Add, Cancel, and Save .torrent are connected in the Win32 dialog. Mode, tags, default-category persistence, alternate incomplete-file path, remember-path persistence, stop condition, queue placement, skip-hash, sequential/first-last priorities, content layout, and Never show again are currently not applied to the task/controller. Treat these controls as unsupported until implementation and dedicated UI tests are added. Remove Download buttons dispatch to the existing permanent-delete, list-removal, and cancel actions; controller safety paths are covered by `TestModernCoralThemeSettingsModalBoundsAndSafeDelete`. Live native dialog interaction and screenshot verification remain pending.
+
+Live BitTorrent progress now reports received blocks while their pieces are still being assembled; only verified-piece bytes are retained as resumable progress. The received-block UI progress change has not yet been covered by an automated regression or verified in the running Windows UI.
+
+| Native compact table and New Download dialog | Compact Name column reserves 260 DPI-scaled px after shrinking oversized saved columns; progress bounds stay within Name; compact dialog action row fits within 440 DPI-scaled client pixels across supported DPI values | MSVC Release build; 71/71 C++ suites passed; staged compact dialog visually confirmed |
+
+| Task-row hover responsiveness | Moving between rows changes hover state and synchronously redraws the old/new row regions | `TestDesktopUiHitTestingAndMouseInteractions` included in 71/71 passing suites; updated executable staged |

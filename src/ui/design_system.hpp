@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Radium Download Manager — Coral Dark UI Design System & High-DPI Metrics
 // Defines the Coral Dark color palette, 4px spacing grid, Segoe UI typography ramp,
 // High-DPI scaling math, minimum window constraints, geometric vector icons, and
@@ -101,30 +101,30 @@ struct ColorRgba {
 
 struct ThemePalette {
     ThemeMode mode{ThemeMode::kDark};
-    ColorRgba app_background;      // Main window canvas (#0F172A Deep Space Slate)
+    ColorRgba app_background;      // Main window canvas (#161618)
     ColorRgba cosmic_void;         // Deep space charcoal void (#070B14)
     ColorRgba cosmic_nebula;       // Subtle atmospheric navy tone (#111A2E)
     ColorRgba cosmic_indigo;       // Deep indigo atmospheric accent (#1E1B4B)
-    ColorRgba surface_primary;     // Sidebar, toolbar, details pane (#1E293B)
-    ColorRgba surface_elevated;    // Dialogs, dropdowns, cards (#334155)
-    ColorRgba surface_hover;       // Row/button hover state (#475569)
-    ColorRgba surface_selected;    // Selected row/category state (#1E3A8A)
+    ColorRgba surface_primary;     // Sidebar, toolbar, details pane (#1E1E22)
+    ColorRgba surface_elevated;    // Dialogs, dropdowns, cards (#28282E)
+    ColorRgba surface_hover;       // Row/button hover state (#2B2B32)
+    ColorRgba surface_selected;    // Selected row/category state (#302328)
     ColorRgba surface_pressed;     // Pressed button/control state
-    ColorRgba border_subtle;       // 1px hairlines and dividers (#334155)
-    ColorRgba border_focus;        // 2px keyboard focus ring (#38BDF8 / #60A5FA)
-    ColorRgba text_primary;        // High-contrast body & filenames (#F8FAFC)
-    ColorRgba text_secondary;      // Metadata, column headers, sizes (#94A3B8)
-    ColorRgba text_muted;          // Disabled controls & placeholders (#64748B)
-    ColorRgba accent_primary;      // Restrained blue primary action (#2563EB)
-    ColorRgba accent_hover;        // Blue hover state (#3B82F6)
+    ColorRgba border_subtle;       // 1px hairlines and dividers (#35353D)
+    ColorRgba border_focus;        // 2px keyboard focus ring (#FF4757)
+    ColorRgba text_primary;        // High-contrast body & filenames (#F2F2F3)
+    ColorRgba text_secondary;      // Metadata, column headers, sizes (#B4B4BD)
+    ColorRgba text_muted;          // Disabled controls & placeholders (#85858F)
+    ColorRgba accent_primary;      // Coral primary action (#FF4757)
+    ColorRgba accent_hover;        // Coral hover state (#FF666D)
     ColorRgba accent_cyan;         // Restrained cosmic cyan accent (#06B6D4)
     ColorRgba accent_violet;       // Celestial violet accent (#8B5CF6)
     ColorRgba badge_stream;        // HLS/DASH stream indicator (#8B5CF6)
     ColorRgba badge_file;          // Ordinary HTTP file indicator (#2563EB)
-    ColorRgba status_success;      // Completed (#22C55E)
-    ColorRgba status_warning;      // Paused / Retrying (#F59E0B)
-    ColorRgba status_danger;       // Failed / Error (#EF4444)
-    ColorRgba progress_track;      // Unfilled progress bar background (#1E293B)
+    ColorRgba status_success;      // Completed muted neutral (#A9B4C2)
+    ColorRgba status_warning;      // Paused / Retrying (#F2B84B)
+    ColorRgba status_danger;       // Failed / Error orange (#FF9F43)
+    ColorRgba progress_track;      // Unfilled progress bar background (#303036)
     ColorRgba star_bright;         // Foreground celestial star point (#E2E8F0)
     ColorRgba star_mid;            // Mid-field star point (#94A3B8)
     ColorRgba star_dim;            // Deep dust star point (#38BDF8)
@@ -288,9 +288,9 @@ public:
         p.accent_violet    = {0x8B, 0x5C, 0xF6, 255}; // #8B5CF6 Celestial Violet
         p.badge_stream     = {0x8B, 0x5C, 0xF6, 255}; // #8B5CF6 Media Stream Badge
         p.badge_file       = {0x25, 0x63, 0xEB, 255}; // #2563EB Direct File Badge
-        p.status_success   = {0x22, 0xC5, 0x5E, 255}; // #22C55E Completed Green
+        p.status_success   = {0xA9, 0xB4, 0xC2, 255}; // #A9B4C2 Muted completed state
         p.status_warning   = {0xF5, 0x9E, 0x0B, 255}; // #F59E0B Paused / Warning Amber
-        p.status_danger    = {0xEF, 0x44, 0x44, 255}; // #EF4444 Failed / Error Red
+        p.status_danger    = {0xFF, 0x9F, 0x43, 255}; // #FF9F43 Failed / Error Orange
         p.progress_track   = {0x1E, 0x29, 0x3B, 255}; // #1E293B Progress Track
         p.star_bright      = {0xE2, 0xE8, 0xF0, 210}; // #E2E8F0 Bright Starlight
         p.star_mid         = {0x94, 0xA3, 0xB8, 145}; // #94A3B8 Mid Starlight
@@ -320,9 +320,9 @@ public:
         p.accent_hover     = {0x1D, 0x4E, 0xD8, 255};
         p.badge_stream     = {0x7C, 0x3A, 0xED, 255};
         p.badge_file       = {0x25, 0x63, 0xEB, 255};
-        p.status_success   = {0x16, 0xA3, 0x4A, 255};
+        p.status_success   = {0x7D, 0x8A, 0x99, 255};
         p.status_warning   = {0xD9, 0x77, 0x06, 255};
-        p.status_danger    = {0xDC, 0x26, 0x26, 255};
+        p.status_danger    = {0xD9, 0x7A, 0x24, 255};
         p.progress_track   = {0xE2, 0xE8, 0xF0, 255};
         p.glass_surface    = {0xFA, 0xFA, 0xFC, 225};
         p.glass_elevated   = {0xFF, 0xFF, 0xFF, 240};
@@ -338,22 +338,22 @@ public:
         p.cosmic_nebula    = {0x1A, 0x1A, 0x1E, 255}; // #1A1A1E
         p.surface_primary  = {0x1E, 0x1E, 0x22, 255}; // #1E1E22 Surface
         p.surface_elevated = {0x28, 0x28, 0x2E, 255}; // #28282E Elevated
-        p.surface_hover    = {0x25, 0x25, 0x2B, 255}; // #25252B Row hover
-        p.surface_selected = {0x2A, 0x2A, 0x32, 255}; // #2A2A32 Selected row
-        p.surface_pressed  = {0x32, 0x32, 0x3C, 255};
-        p.border_subtle    = {0x2E, 0x2F, 0x35, 255}; // #2E2F35 Hairline divider
-        p.border_focus     = {0xFF, 0x4F, 0x57, 255}; // #FF4F57 Reference Coral Red
+        p.surface_hover    = {0x2B, 0x2B, 0x32, 255}; // #2B2B32 Row/control hover
+        p.surface_selected = {0x30, 0x23, 0x28, 255}; // #302328 Warm selected row
+        p.surface_pressed  = {0x3A, 0x2B, 0x30, 255}; // #3A2B30 Pressed control
+        p.border_subtle    = {0x35, 0x35, 0x3D, 255}; // #35353D Hairline divider
+        p.border_focus     = {0xFF, 0x47, 0x57, 255}; // #FF4757 Reference Coral Red
         p.text_primary     = {0xF2, 0xF2, 0xF3, 255}; // #F2F2F3 Crisp off-white
-        p.text_secondary   = {0xA4, 0xA5, 0xAC, 255}; // #A4A5AC Secondary metadata
-        p.text_muted       = {0x72, 0x73, 0x7A, 255}; // #72737A Muted text
-        p.accent_primary   = {0xFF, 0x4F, 0x57, 255}; // #FF4F57 Reference Coral Red
-        p.accent_hover     = {0xFF, 0x66, 0x6D, 255}; // #FF666D Hover Coral Red
-        p.badge_stream     = {0xFF, 0x4F, 0x57, 255}; // #FF4F57 Coral stream badge
-        p.badge_file       = {0xFF, 0x4F, 0x57, 255}; // #FF4F57 Coral file badge
-        p.status_success   = {0x8E, 0x8E, 0x98, 255}; // #8E8E98
-        p.status_warning   = {0x9E, 0x9E, 0xA8, 255}; // #9E9EA8
-        p.status_danger    = {0xFF, 0x4F, 0x57, 255}; // #FF4F57 Error Coral Red
-        p.progress_track   = {0x2E, 0x2E, 0x36, 255}; // #2E2E36 Progress track
+        p.text_secondary   = {0xB4, 0xB4, 0xBD, 255}; // #B4B4BD Secondary metadata
+        p.text_muted       = {0x85, 0x85, 0x8F, 255}; // #85858F Muted text
+        p.accent_primary   = {0xFF, 0x47, 0x57, 255}; // #FF4757 Reference Coral Red
+        p.accent_hover     = {0xFF, 0x5F, 0x6A, 255}; // #FF5F6A Hover Coral Red
+        p.badge_stream     = {0xFF, 0x47, 0x57, 255}; // #FF4757 Coral stream badge
+        p.badge_file       = {0xFF, 0x47, 0x57, 255}; // #FF4757 Coral file badge
+        p.status_success   = {0xA9, 0xB4, 0xC2, 255}; // #A9B4C2 Muted completed state
+        p.status_warning   = {0xF2, 0xB8, 0x4B, 255}; // #F2B84B Paused / scheduled amber
+        p.status_danger    = {0xFF, 0x9F, 0x43, 255}; // #FF9F43 Error Orange
+        p.progress_track   = {0x30, 0x30, 0x36, 255}; // #303036 Progress track
         p.glass_surface    = {0x1C, 0x1C, 0x22, 215}; // Translucent charcoal glass
         p.glass_elevated   = {0x26, 0x26, 0x2E, 230}; // Elevated translucent card
         p.glass_border     = {0x40, 0x42, 0x4E, 140}; // Subtle glass border
@@ -395,6 +395,30 @@ public:
         }
         return "";
     }
+};
+
+// Shared geometry for the New Download form. Keeping row spacing in one place
+// prevents the painted labels from drifting into neighboring child controls.
+struct NewDownloadDialogLayout {
+    static constexpr int kHeaderTitleTop = 18;
+    static constexpr int kHeaderSubtitleTop = 42;
+    static constexpr int kDividerTop = 64;
+
+    static constexpr int kFirstLabelTop = 72;
+    static constexpr int kLabelHeight = 16;
+    static constexpr int kControlOffset = 27; // At least 10 px label/control clearance across DPIs
+    static constexpr int kControlHeight = 28;
+    static constexpr int kRowPitch = 63;      // At least 8 px inter-row clearance across DPIs
+
+    static constexpr int LabelTop(int row) { return kFirstLabelTop + row * kRowPitch; }
+    static constexpr int ControlTop(int row) { return LabelTop(row) + kControlOffset; }
+    static constexpr int InterRowGap() { return kRowPitch - kControlOffset - kControlHeight; }
+
+    static constexpr int kSpaceLabelTop = 326;
+    static constexpr int kStartChkTop = 350;
+    static constexpr int kScheduleChkTop = 350;
+    static constexpr int kButtonsTop = 392;
+    static constexpr int kButtonHeight = 36;
 };
 
 } // namespace openidm::ui
