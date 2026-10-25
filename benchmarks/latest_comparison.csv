@@ -1,16 +1,16 @@
 Scenario_ID,Scenario_Name,Tool_ID,Tool_Name,Configured_Connections,Status,Samples,Median_Time_s,Median_Throughput_MiBs,Median_Throughput_Mbps,Peak_Working_Set_MB,Median_CPU_Time_ms,Observed_Peak_Connections,SHA256_Verified
-scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),flux_8,Flux Download Manager,8,COMPLETED,3,0.897,285.36,2393.77,12.2,343.75,5,PASS
-scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),flux_32,Flux Download Manager,32,COMPLETED,3,0.938,272.92,2289.45,12.24,296.88,5,PASS
-scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),aria2_16,aria2,16,COMPLETED,3,1.382,185.25,1554.03,21.0,453.12,13,PASS
+scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),flux_8,Radium Download Manager,8,COMPLETED,3,1.024,250.12,2098.14,13.79,250.0,8,PASS
+scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),flux_32,Radium Download Manager,32,COMPLETED,3,1.022,250.46,2101.05,14.96,281.25,11,PASS
+scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),aria2_16,aria2,16,COMPLETED,3,1.329,192.63,1615.91,20.99,468.75,13,PASS
 scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),idm_642,Internet Download Manager,16,SKIPPED,0,N/A,N/A,N/A,N/A,N/A,N/A,N/A
 scenario_a_256mb_unthrottled,Scenario A: 256 MiB High-Speed Range Download (Unthrottled),fdm_634,Free Download Manager,16,SKIPPED,0,N/A,N/A,N/A,N/A,N/A,N/A,N/A
-scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),flux_8,Flux Download Manager,8,COMPLETED,3,8.474,7.55,63.35,12.31,15.62,8,PASS
-scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),flux_32,Flux Download Manager,32,COMPLETED,3,3.15,20.32,170.43,16.34,46.88,32,PASS
-scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),aria2_16,aria2,16,COMPLETED,3,4.56,14.04,117.74,24.68,125.0,16,PASS
+scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),flux_8,Radium Download Manager,8,COMPLETED,3,8.389,7.63,64.0,13.73,15.62,8,PASS
+scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),flux_32,Radium Download Manager,32,COMPLETED,3,2.785,22.98,192.79,22.42,46.88,32,PASS
+scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),aria2_16,aria2,16,COMPLETED,3,4.58,13.97,117.22,23.98,156.25,16,PASS
 scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),idm_642,Internet Download Manager,16,SKIPPED,0,N/A,N/A,N/A,N/A,N/A,N/A,N/A
 scenario_b_64mb_throttled,Scenario B: 64 MiB Multi-Connection Scaling (1 MiB/s per connection),fdm_634,Free Download Manager,16,SKIPPED,0,N/A,N/A,N/A,N/A,N/A,N/A,N/A
-scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),flux_8,Flux Download Manager,8,COMPLETED,3,0.202,79.2,664.41,11.89,46.88,1,PASS
-scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),flux_32,Flux Download Manager,32,COMPLETED,3,0.207,77.29,648.32,11.88,31.25,1,PASS
-scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),aria2_16,aria2,16,COMPLETED,3,0.091,174.83,1466.56,11.44,78.12,10,PASS
+scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),flux_8,Radium Download Manager,8,COMPLETED,3,0.204,78.44,657.97,11.93,31.25,1,PASS
+scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),flux_32,Radium Download Manager,32,COMPLETED,3,0.207,77.21,647.66,12.04,31.25,1,PASS
+scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),aria2_16,aria2,16,COMPLETED,3,0.099,160.99,1350.48,11.29,78.12,9,PASS
 scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),idm_642,Internet Download Manager,16,SKIPPED,0,N/A,N/A,N/A,N/A,N/A,N/A,N/A
 scenario_c_16mb_norange,Scenario C: 16 MiB Non-Range Server (Single-Stream Fallback),fdm_634,Free Download Manager,16,SKIPPED,0,N/A,N/A,N/A,N/A,N/A,N/A,N/A
