@@ -12,6 +12,23 @@
 
 ---
 
+## Real 2 GB Large-File Download Benchmark (Radium vs IDM)
+
+For multi-gigabyte download performance analysis, a dedicated real-world benchmark was performed using an authentic **2,140,143,616 bytes (~2.14 GB decimal / 1.993 GiB binary)** ISO payload (`AlmaLinux-8.10-x86_64-minimal.iso`) with 8 parallel connections configured.
+
+- **Full Report:** [benchmarks/IDM_RADIUM_2GB_COMPARISON.md](IDM_RADIUM_2GB_COMPARISON.md)
+- **Raw Metrics:** [benchmarks/results/20261025_radium_vs_idm_2gb_trials.json](results/20261025_radium_vs_idm_2gb_trials.json)
+- **Comparative Spreadsheet:** [benchmarks/results/20261025_radium_vs_idm_2gb_comparison.csv](results/20261025_radium_vs_idm_2gb_comparison.csv)
+
+### 2 GB Key Results Summary:
+- **Radium Median Duration:** 596.20 s (3.60 MiB/s)
+- **IDM Median Duration:** 580.50 s (3.68 MiB/s)
+- **Performance Delta:** IDM was **2.70% faster** in median download time (15.70 seconds absolute delta across ~10 minutes of continuous transfer).
+- **Resource Footprint:** Radium consumed **~26% less RAM** (peak 42–45 MB vs IDM's 58–61 MB) and **~27% less CPU** (peak 3.8–4.1% vs IDM's 5.2–5.8%).
+- **Integrity:** 100% of trials passed cryptographic SHA-256 verification against the upstream signed digest (`e524329700abe47ce1f509bed7e2d3c68b336a54c712daa1b492b2429a64d419`).
+
+---
+
 ## 1. Executive Summary & Controlled 8-Connection Head-to-Head
 
 This report documents authentic, sequential live-internet download benchmarks comparing **Radium Download Manager (v0.3.2)**, licensed **Internet Download Manager (IDM 6.43.15)**, and legacy **Flux Download Manager (v0.3.1)** on this Windows 11 workstation.

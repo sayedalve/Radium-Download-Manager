@@ -80,6 +80,7 @@ benchmarks/*local*
 benchmarks/test_*
  
 benchmarks/real_internet_work/
+benchmarks/work_2gb/
 benchmarks/fixtures/temp_*
 
 

@@ -19,15 +19,18 @@ benchmarks/
 │   ├── run_local_benchmark.py          # Deterministic local loopback benchmark runner
 │   ├── run_real_internet_benchmark.py  # Live internet benchmark harness (IDM vs Radium)
 │   ├── run-competitor-benchmarks.py    # Multi-tool competitor comparison runner (aria2, etc.)
-│   └── run_radium_vs_idm_8conns.py     # Controlled 10-trial Radium vs IDM 8-connection runner
+│   ├── run_radium_vs_idm_8conns.py     # Controlled 10-trial Radium vs IDM 8-connection runner
+│   └── run_radium_vs_idm_2gb.py        # Dedicated 2 GB Radium vs IDM benchmark runner
 ├── results/
 │   ├── 20261021_hetzner_100mb_radium.json # Verified live Hetzner 100 MiB run metadata
 │   ├── 20261021_radium_vs_idm_8conns_trials.json     # 10-trial raw metrics (Radium vs IDM)
 │   ├── 20261021_radium_vs_idm_8conns_comparison.csv # 10-trial comparison spreadsheet
+│   ├── 20261025_radium_vs_idm_2gb_trials.json       # 2 GB raw metrics (Radium vs IDM)
+│   ├── 20261025_radium_vs_idm_2gb_comparison.csv   # 2 GB comparison spreadsheet
 │   ├── local_benchmark_matrix.json     # Deterministic local connection matrix results
 │   └── summary_comparison.csv          # Spreadsheet-ready comparative CSV
 ├── fixtures/                           # Deterministic test fixtures (fixture_1mb.bin, fixture_4mb.bin)
-└── RESULTS.md                          # Full narrative analysis of Hetzner 100MB & IDM head-to-head
+└── IDM_RADIUM_2GB_COMPARISON.md        # Real 2 GB benchmark comparison report
 ```
 
 ---
@@ -75,6 +78,9 @@ python benchmarks/scripts/run_real_internet_benchmark.py
 
 # Or run the controlled 10-trial Radium vs IDM benchmark (8 connections each):
 python benchmarks/scripts/run_radium_vs_idm_8conns.py --trials 5
+
+# Or run the 2 GB Radium vs IDM benchmark:
+python benchmarks/scripts/run_radium_vs_idm_2gb.py --trials 2
 
 # Or invoke the compiled Radium binary directly:
 dist\Radium.exe --db benchmarks/real_internet_work/bench.db --out benchmarks/real_internet_work --connections 32 --download https://fsn1-speed.hetzner.com/100MB.bin
