@@ -1,30 +1,32 @@
 <p align="center">
   <picture>
-    <img alt="Radium Download Manager" src="https://img.shields.io/badge/RADIUM-DOWNLOAD%20MANAGER-e03131?style=for-the-badge&logo=fastapi&logoColor=white" height="42">
+    <img alt="Radium Download Manager" src="https://img.shields.io/badge/RADIUM-DOWNLOAD%20MANAGER-e03131?style=for-the-badge&logo=windows11&logoColor=white" height="42">
   </picture>
 </p>
 
 <h1 align="center">Radium Download Manager</h1>
 
 <p align="center">
-  <b>High-performance, open-source download manager and adaptive stream pipeline for Windows 11.</b><br>
-  A modern, lightweight <b>IDM alternative</b> featuring a dynamic segmented HTTP engine with work-stealing range reuse, out-of-process HLS/DASH extraction, and Manifest V3 browser integration,<br>
-  built as a native C++20 / Win32 desktop application. Open source, zero telemetry, and entirely offline.
+  <b>Native Windows downloads for HTTP/HTTPS, BitTorrent, and media streams.</b><br>
+  A native C++20 / Win32 download manager with segmented HTTP/HTTPS, BitTorrent v1, HLS/DASH stream downloading, and Manifest V3 browser integration.<br>
+  The latest published release is <b>v0.3.2</b>; the main branch contains newer changes.
 </p>
 
 <p align="center">
   <img alt="Language: C++20" src="https://img.shields.io/badge/Language-ISO%20C%2B%2B20-00599C?style=flat-square&logo=c%2B%2B">
   <img alt="Platform: Windows 11 / Win32" src="https://img.shields.io/badge/Platform-Windows%2011%20%7C%20Win32-0078D4?style=flat-square&logo=windows11">
-  <img alt="UI: Native Direct2D" src="https://img.shields.io/badge/UI-Direct2D%20%2F%20GDI-22c55e?style=flat-square">
+  <img alt="UI: Native Win32" src="https://img.shields.io/badge/UI-Native%20Win32-22c55e?style=flat-square">
   <img alt="Extension: Manifest V3" src="https://img.shields.io/badge/Extension-Manifest%20V3-eab308?style=flat-square&logo=googlechrome">
   <img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/License-GPL--3.0--or--later-3a3a3a?style=flat-square">
-  <img alt="Status: Production v0.3.0" src="https://img.shields.io/badge/Status-v0.3.0%20Release-e03131?style=flat-square">
+  <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/sayedalve/Radium-Download-Manager?style=flat-square"></a>
+  <a href="https://github.com/sayedalve/Radium-Download-Manager/actions/workflows/windows-release.yml"><img alt="Windows release build" src="https://github.com/sayedalve/Radium-Download-Manager/actions/workflows/windows-release.yml/badge.svg?branch=main"></a>
 </p>
 
 <p align="center">
   <a href="#features"><b>Features</b></a> ·
   <a href="#everything-in-the-box"><b>Everything in the box</b></a> ·
   <a href="#high-performance-download-engine"><b>Download Engine</b></a> ·
+  <a href="#bittorrent-downloads"><b>BitTorrent</b></a> ·
   <a href="#adaptive-stream-pipeline"><b>Stream Pipeline</b></a> ·
   <a href="#performance-benchmarks"><b>Benchmarks</b></a> ·
   <a href="#browser-integration"><b>Browser Capture</b></a> ·
@@ -32,22 +34,24 @@
   <a href="#under-the-hood"><b>Architecture</b></a> ·
   <a href="#get-started"><b>Get Started</b></a> ·
   <a href="#downloads"><b>Downloads</b></a> ·
+  <a href="#testing-and-verification"><b>Verification</b></a> ·
   <a href="#known-limitations"><b>Limitations</b></a> ·
+  <a href="#contributing"><b>Contributing</b></a> ·
   <a href="#license-and-credits"><b>License & Credits</b></a>
 </p>
 
 <br>
 
 <p align="center">
-  <img src="docs/images/readme/flux-main-window.png" alt="Radium Download Manager running on Windows 11: Dark matte canvas, multi-column sorting, progress bars, status indicators, and search capsule" width="100%">
+  <img src="docs/images/readme/flux-main-window.png" alt="Existing main-window screenshot retained as the application preview; legacy branding is visible" width="100%">
   <br>
   <sub>The Radium main application window: Deep Charcoal dark theme, live progress bars, speed and size indicators, and filter controls.<br>
-  Rendered natively on Windows 11 with Direct2D hardware acceleration.</sub>
+  Existing repository capture retained unchanged; it predates the current Radium branding.</sub>
 </p>
 
 > [!NOTE]
-> **Radium Download Manager is a fast, privacy-focused Internet Download Manager alternative for Windows.**
-> Rather than relying on heavy Electron runtimes or commercial subscription wrappers, Radium is engineered from the ground up in native ISO C++20. It combines the multi-connection segment scheduler of [Brisk](https://github.com/BrisklyDev/brisk), the media sniffing intelligence of [Cat Catch](https://github.com/xifangczy/cat-catch), and sandboxed out-of-process stream muxing with [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) and [FFmpeg](https://ffmpeg.org/).
+> **Radium Download Manager is an open-source native Windows download manager.**
+> Built with C++20 and Win32, Radium combines segmented HTTP/HTTPS downloads, a dedicated BitTorrent engine, browser-assisted download capture, and an out-of-process stream pipeline.
 
 <br>
 
@@ -55,11 +59,11 @@
   <tr>
     <td width="25%" valign="top">
       <h3>⚡ Native and fast</h3>
-      Pure C++20 on native Win32 and Direct2D. No Electron, no WebView2, and no runtime waiting. Starts in under 50 milliseconds and idles under 10 megabytes of memory.
+      Native C++20 and Win32 desktop application. Startup and memory use are measured in project benchmarks; results depend on build and machine.
     </td>
     <td width="25%" valign="top">
       <h3>🔀 Segmented engine</h3>
-      Dynamic connection scaling from 1 to 32 parallel workers with work-stealing byte-range splitting, secondary rollback, and automatic stall reset. Maximizes your full network bandwidth.
+      Dynamic connection scaling from 1 to 32 workers with work-stealing byte-range reuse and rollback when a server rejects a range. Parallel downloads depend on server support and network conditions.
     </td>
     <td width="25%" valign="top">
       <h3>🌐 Seamless browser capture</h3>
@@ -67,7 +71,7 @@
     </td>
     <td width="25%" valign="top">
       <h3>🔒 Private and secure</h3>
-      All metadata is persisted to local SQLite with WAL journaling. Native Messaging uses per-user ACL-restricted Windows Named Pipes. Zero telemetry, zero analytics, zero cloud accounts.
+      Download tasks and settings are stored locally in SQLite. Browser communication uses Native Messaging and per-user ACL-restricted Windows Named Pipes.
     </td>
   </tr>
 </table>
@@ -76,12 +80,12 @@
 
 ## Features
 
-Every screenshot below is captured directly from the actual running Radium desktop application on Windows 11.
+The main-window image is the original repository preview and remains unchanged; the dialog screenshots are captures from the running Radium application.
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/readme/flux-main-window.png" alt="Radium Download Manager table view with file icons, download progress bars, and column sorting" width="100%">
+      <img src="docs/images/readme/flux-main-window.png" alt="Existing main-window screenshot of the download queue; retained unchanged" width="100%">
       <br>
       <sub>Multi-column download queue with file-type vector icons, real-time progress bars, and speed statistics.</sub>
       <h3>Dynamic Segment Scheduling & Queue Control</h3>
@@ -99,7 +103,7 @@ Every screenshot below is captured directly from the actual running Radium deskt
       </ul>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/readme/flux-new-download-dialog.png" alt="Radium New Download prompt dialog with URL, filename, destination folder, and immediate or scheduled download options" width="100%">
+      <img src="docs/images/readme/radium-new-download-dialog.jpg" alt="Radium New Download prompt dialog with URL, filename, destination folder, and immediate or scheduled download options" width="100%">
       <br>
       <sub>Native Add / Intercept Download dialog with auto-detected filenames, save paths, stream quality, and scheduling.</sub>
       <h3>Smart Interception & Pre-Flight Validation</h3>
@@ -119,13 +123,11 @@ Every screenshot below is captured directly from the actual running Radium deskt
   </tr>
   <tr>
     <td colspan="2" valign="top">
-      <img src="docs/images/readme/flux-settings-center.png" alt="Radium Settings & Configuration Center modal showing dark UI categories and runtime toggles" width="100%">
+      <img src="docs/images/readme/radium-settings-dialog.jpg" alt="Radium Settings window with application preferences" width="100%">
       <br>
-      <sub>In-app Settings & Configuration Center: Modular categories, connection limits, and instant SQLite persistence.</sub>
+      <sub>In-app Settings window showing application preferences.</sub>
       <h3>Deep Configuration & Native System Integration</h3>
-      Full control over network behavior, buffer allocations, storage rules, and application presentation. Features 1-click dropdowns for concurrent task limits (presets including 6 tasks), connection scaling, retry intervals, segment stall timeouts, custom headers, and tray minimization.
-      <br><br>
-      Settings are validated in real time and committed directly to an embedded SQLite database. No bloated registry keys, no telemetry toggles, and zero external network calls.
+      The Settings window groups application preferences in one native dialog. Settings are stored locally; available controls depend on feature and application version.
     </td>
   </tr>
 </table>
@@ -152,7 +154,7 @@ Every screenshot below is captured directly from the actual running Radium deskt
     </td>
     <td width="33%" valign="top">
       <h4>🖥️ Windows 11 Native UX</h4>
-      Native Win32 desktop application with Direct2D hardware acceleration. Deep Charcoal palette, lightweight native Windows 11 animations (smooth hover/press transitions, interpolated progress bars, dialog fades, action pulses), and live Windows Taskbar progress (<code>ITaskbarList3</code>).<br><br>
+      Native Win32 desktop application with a GDI-rendered interface. Deep Charcoal palette, lightweight native Windows 11 animations (smooth hover/press transitions, interpolated progress bars, dialog fades, action pulses), and live Windows Taskbar progress (<code>ITaskbarList3</code>).<br><br>
       Hierarchical category routing (Priority: User Explicit &gt; Domain Site Rules &gt; Custom Extension Mappings &gt; Configured Category Folders &gt; Subfolders &gt; Default Dir).<br><br>
       Task stop times, queue start/stop scheduling loop, and safe post-queue completion power actions (System Sleep / Shutdown via native Windows APIs).<br><br>
       Per-Monitor DPI v2 scaling, virtualized task table, middle-ellipsis filename truncation, and search-as-you-type.
@@ -167,7 +169,7 @@ Every screenshot below is captured directly from the actual running Radium deskt
     </td>
     <td width="33%" valign="top">
       <h4>🤖 Automation &amp; Tools</h4>
-      Full command-line interface: headless daemon mode (<code>--daemon</code>), queue listing (<code>--list</code>), stream probing (<code>--probe &lt;url&gt;</code>), and desktop UI state snapshots (<code>--gui-snapshot</code>).<br><br>
+      The desktop executable includes selected command-line modes, including daemon, queue listing, stream probing, and UI snapshots. The browser bridge uses JSON-RPC 2.0 over a local named pipe; it is not a general-purpose public API.
       Recursive Breadth-First Site Grabber with CSS <code>url()</code> &amp; HTML media attribute parsing, configurable destination folders, and SSRF private IP protection.<br><br>
       Batch task export and import via standard JSON and CSV files for easy queue backup and transfer.
     </td>
@@ -184,7 +186,7 @@ Every screenshot below is captured directly from the actual running Radium deskt
 
 ## High-Performance Download Engine
 
-Radium implements an in-process, IOCP-driven segmented download engine inspired by [Brisk](https://github.com/BrisklyDev/brisk).
+Radium implements an in-process, concurrent segmented HTTP/HTTPS download engine inspired by [Brisk](https://github.com/BrisklyDev/brisk).
 
 ```
                       ┌────────────────────────────────────────┐
@@ -206,6 +208,25 @@ Radium implements an in-process, IOCP-driven segmented download engine inspired 
 5. **Atomic Commit:** Download segments write into an isolated `*.radium.part` file using pre-allocated disk storage (`SetFileValidData` / sparse files). When all segments reach 100%, the file is atomically renamed to its final target path.
 
 See [`docs/DOWNLOAD_ENGINE_DESIGN.md`](docs/DOWNLOAD_ENGINE_DESIGN.md) for full algorithmic details.
+
+<br>
+
+## BitTorrent Downloads
+
+Radium includes a dedicated BitTorrent v1 engine for local .torrent files and magnet links. The current implementation includes:
+
+- Magnet metadata retrieval through BEP 9.
+- HTTP and UDP tracker communication, plus bounded DHT peer discovery.
+- Peer-wire handling, piece and block scheduling, and SHA-1 piece integrity checks.
+- Multi-file storage mapping and selective file downloads through the native Add Torrent dialog.
+- Persisted torrent task state and recovery of verified piece data.
+- Source implementation for incoming TCP handshakes and uploading verified pieces for seeding.
+
+**Verification status:** Parser, peer framing, tracker parsing, multi-file mapping, and piece scheduling have automated C++ coverage. Magnet metadata and tracker/DHT test paths are present. The feature matrix marks torrent behavior as partially verified; deterministic incoming-peer block transfer, live seeding, the selector UI route, and selective output still need runtime verification.
+
+**Not supported:** Peer Exchange (PEX/BEP 11), µTP, and BitTorrent v2 (BEP 52). Several visible Add Torrent settings are not connected to the task controller, including tags, alternate incomplete-file path, stop condition, queue placement, skip-hash, sequential/first-last priority, and content layout. See [known limitations](docs/KNOWN_LIMITATIONS.md) and [test matrix](docs/TEST_MATRIX.md).
+
+<!-- Planned capture: docs/images/readme/radium-add-torrent-dialog.png. Pending a suitable existing executable with the current selector layout. -->
 
 <br>
 
@@ -238,8 +259,10 @@ Across 10 alternating live internet trials (5 Radium, 5 IDM) on a 100 MiB payloa
 | **Median Peak Memory (RSS)** | **18.30 MB** | **48.80 MB** | **Radium uses 62.5% less RAM** |
 | **Median Peak CPU Usage** | **15.6%** | **56.2%** | **Radium uses 72.2% less CPU** |
 
+A later optimized Radium run completed the same payload in 64.72 seconds. That was a single run, so it is not a repeated, like-for-like comparison with IDM. See [benchmark results](benchmarks/RESULTS.md) for the test context.
+
 ### Adaptive 429 Rate-Limit Recovery (32 Connections)
-When configured with 32 connections against rate-limited servers, Radium detects HTTP 429 responses, backs off exponentially, adaptively halves worker threads (32 -> 16 -> 8 -> 4 -> 2 -> 1), and cleanly coordinates segment reallocation without byte gaps, partial overlaps, or data corruption.
+In the documented rate-limited test, Radium reduced concurrency in response to HTTP 429 replies and completed the file with a matching SHA-256 digest. Results depend on server policy; see the benchmark report and raw trial data for the test setup.
 
 Detailed datasets, machine-readable JSON logs, and instructions to reproduce locally or on live connections are available in [`benchmarks/`](benchmarks/) and [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
 
@@ -262,7 +285,7 @@ Radium includes a clean, lightweight Manifest V3 extension compatible with Googl
                 │ Named Pipe: \\.\pipe\Flux_IPC_<UserSID>
 ┌───────────────▼─────────────────┐
 │ Radium.exe (Desktop Engine)       │
-│  ├── Win32 Direct2D Desktop UI  │
+│  ├── Native Win32 / GDI Desktop UI  │
 │  ├── In-Process Segment Engine  │
 │  └── SQLite 3 State Store (WAL) │
 └─────────────────────────────────┘
@@ -286,7 +309,7 @@ Radium is designed for both interactive desktop use and scriptable automation. E
 Radium.exe --daemon
 
 # Probe an adaptive media stream and output JSON stream metadata
-Radium.exe --probe "https://example.com/live/playlist.m3u8"
+Radium.exe --probe-stream "https://example.com/live/playlist.m3u8"
 
 # Print the current download queue to stdout
 Radium.exe --list
@@ -309,7 +332,7 @@ Over the local IPC pipe (`\\.\pipe\Flux_IPC_<SID>`), scripts and agents can send
   "params": {
     "url": "https://releases.ubuntu.com/24.04.1/ubuntu-24.04.1-desktop-amd64.iso",
     "filename": "ubuntu-24.04.1-desktop-amd64.iso",
-    "saveDir": "C:\\Users\\sayed\\Downloads"
+    "saveDir": "%USERPROFILE%\\Downloads"
   }
 }
 ```
@@ -325,14 +348,15 @@ flowchart TD
     Ext["Browser Extension<br><i>(Manifest V3)</i>"] -->|stdio| NMH["Native Messaging Host<br><code>radium-nmh.exe</code>"]
     NMH -->|Named Pipe<br><code>Flux_IPC_&lt;SID&gt;</code>| IPC["IPC Server<br><i>(JSON-RPC 2.0)</i>"]
     
-    CLI["Command-Line Interface<br><code>Radium.exe --cli</code>"] --> Ctrl
+    CLI["Command-Line Interface<br>selected executable modes"] --> Ctrl
     IPC --> Ctrl["Download Controller<br><i>(Core Orchestrator)</i>"]
     
     Ctrl <--> DB[("SQLite 3 Store<br><i>WAL Mode</i>")]
-    Ctrl <--> UI["Desktop View<br><i>(Win32 / Direct2D)</i>"]
-    
-    Ctrl --> Engine["HTTP Segment Engine<br><i>(WinHTTP + IOCP)</i>"]
-    Ctrl --> WorkerMgr["Stream Worker Manager<br><i>(Job Object)</i>"]
+    Ctrl <--> UI["Desktop View<br><i>(Win32 / GDI)</i>"]
+    Ctrl --> Engine["HTTP Segment Engine<br><i>(WinHTTP, concurrent ranges)</i>"]
+    Ctrl --> Torrent["BitTorrent v1 Engine<br><i>(Trackers, DHT, peer wire)</i>"]
+    Ctrl --> WorkerMgr["Stream Worker Manager<br><i>(Windows Job Object)</i>"]
+    Torrent --> Disk
     
     WorkerMgr --> N_M3U8["N_m3u8DL-RE<br><i>Stream Probing</i>"]
     WorkerMgr --> FFMPEG["FFmpeg<br><i>Muxing & Verification</i>"]
@@ -354,27 +378,34 @@ See [`docs/SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) and [`docs/DATA
 ## Get Started
 
 ### System Requirements
-- **Operating System:** Windows 11 (all versions) or Windows 10 (version 1809+, 64-bit).
-- **Architecture:** x64 (AMD64 / Intel 64) or ARM64 (native Snapdragon / ARM PCs).
-- **Dependencies:** None. WinHTTP, Direct2D, and GDI are built into the Windows OS.
+- **Operating System:** Windows 11 (the published Windows release pipeline targets Windows 11).
+- **Architecture:** x64 or ARM64; both release architectures are published.
+- **Runtime components:** Core downloads use native Windows APIs; Full packages include bundled stream workers.
 
 ### Downloads
 
-The latest release packages are available on the [GitHub Releases page](https://github.com/sayedalve/Radium-Download-Manager/releases):
+The latest published release is [v0.3.2](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v0.3.2), published October 21, 2026. The main branch contains newer changes that are not included in that release. x64 and ARM64 installers and portable Full/Core packages are available:
 
 | Package | Format | Description |
 |---|---|---|
-| **Radium Installer (x64)** | `Radium-Setup-x64-0.3.0.exe` | Recommended Inno Setup installer; per-user non-elevated install, desktop shortcuts, and automatic browser registration |
-| **Radium Portable Full (x64)** | `Radium-v0.3.0-Windows-x64-Full.zip` | Complete portable offline release; includes N_m3u8DL-RE and FFmpeg stream extraction workers |
-| **Radium Portable Core (x64)** | `Radium-v0.3.0-Windows-x64-Core.zip` | Lightweight portable release; high-speed segmented HTTP/HTTPS engine (< 2 MB) |
-| **Browser Extension** | `extension/` or `radium-extension-v0.3.0.zip` | Manifest V3 extension for Google Chrome, Brave, Microsoft Edge & Mozilla Firefox |
+| **Radium Installer (x64)** | [Setup](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-x64-0.3.2.exe) | Per-user Windows installer |
+| **Radium Portable Full (x64)** | [Full ZIP](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-x64-Full.zip) | Portable package with bundled stream workers |
+| **Radium Portable Core (x64)** | [Core ZIP](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-x64-Core.zip) | Smaller package without bundled stream workers |
+| **Radium Core Installer (x64)** | [Core Setup](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-x64-Core-0.3.2.exe) | Smaller installer without bundled stream workers |
+| **Radium Installer (ARM64)** | [Setup](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-ARM64-0.3.2.exe) | Windows ARM64 installer |
+| **Radium Core Installer (ARM64)** | [Core Setup](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-ARM64-Core-0.3.2.exe) | Smaller Windows ARM64 installer |
+| **Radium Portable Full (ARM64)** | [Full ZIP](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-ARM64-Full.zip) | Portable package with bundled stream workers |
+| **Radium Portable Core (ARM64)** | [Core ZIP](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-ARM64-Core.zip) | Smaller package without bundled stream workers |
+| **Browser Extension** | [extension source](extension/) | Load the unpacked extension from the repository; no separate extension ZIP is attached to the release. |
+
+Verify downloaded assets with [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/SHA256SUMS.txt).
 
 ### Browser Extension Setup
 
 1. **Chromium (Google Chrome, Brave, Microsoft Edge):**
    - Open your browser's extensions page (`chrome://extensions` or `brave://extensions`).
    - Enable **Developer mode** in the top-right corner.
-   - Click **Load unpacked** and select the `extension/` directory (or extract `radium-extension-v0.3.0.zip`).
+   - Click **Load unpacked** and select the <code>extension/</code> directory.
    - Run the included PowerShell script to register the Native Messaging Host in the Windows Registry:
      ```powershell
      powershell -ExecutionPolicy Bypass -File scripts\register-native-messaging.ps1
@@ -386,20 +417,14 @@ The latest release packages are available on the [GitHub Releases page](https://
 
 ### Building from Source
 
-To compile Radium from source, you need **Visual Studio 2022** (Desktop development with C++) and **CMake 3.25+**:
+To compile Radium from source, use **Windows 11**, **Visual Studio 2022** (Desktop development with C++), and **CMake 3.25 or newer**. The repository build script builds the native targets, worker, and tests, and stages the portable application under <code>dist/</code>:
 
-```cmd
+```powershell
 git clone https://github.com/sayedalve/Radium-Download-Manager.git
 cd Radium-Download-Manager
-cmake -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
+.\scripts\build-windows-msvc.ps1
 ```
-
-The resulting binaries will be placed in `build\Release\` (or `build\win-x64\Release\`):
-- `radium.exe`: Main desktop application and core engine.
-- `radium-nmh.exe`: Stateless Native Messaging Host.
-
-See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) and [`docs/WINDOWS_BUILD_AND_PACKAGING.md`](docs/WINDOWS_BUILD_AND_PACKAGING.md).
+The build script stages the portable application and Native Messaging Host under dist. See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) and [`docs/WINDOWS_BUILD_AND_PACKAGING.md`](docs/WINDOWS_BUILD_AND_PACKAGING.md).
 
 <br>
 
@@ -419,6 +444,16 @@ See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) and [`docs/WINDOWS_
 
 <br>
 
+## Testing and Verification
+
+The source state at main commit 5af0b06 passed the [Windows production build and verification](https://github.com/sayedalve/Radium-Download-Manager/actions/runs/40198169282) and [Windows compatibility matrix](https://github.com/sayedalve/Radium-Download-Manager/actions/runs/40198169275) on October 25, 2026. This README update does not change source code. The feature and test matrices identify behaviors that still need live Windows verification, including torrent UI interaction and incoming-peer seeding.
+
+- [Feature matrix](docs/FEATURE_MATRIX.md)
+- [Test matrix](docs/TEST_MATRIX.md)
+- [Windows release workflow](https://github.com/sayedalve/Radium-Download-Manager/actions/workflows/windows-release.yml)
+
+<br>
+
 ## Known Limitations
 
 > [!IMPORTANT]
@@ -426,9 +461,15 @@ See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) and [`docs/WINDOWS_
 >
 > 1. **Strict DRM Non-Circumvention:** Radium does **not** and will **never** decrypt Widevine, PlayReady, or FairPlay DRM-protected media. If a manifest signals `#EXT-X-KEY:METHOD=SAMPLE-AES-CTR` or DASH `cenc:pssh` encryption, Radium immediately aborts with error code `ERR_STREAM_DRM_PROTECTED`.
 > 2. **In-Memory Browser Blobs:** Ephemeral `blob:` and `data:` URLs generated strictly inside browser JavaScript memory cannot be accessed by external OS processes. The browser extension routes these downloads through the browser's native API rather than passing unreachable URLs to the native downloader.
-> 3. **Platform Scope:** The desktop UI is designed natively for Windows 11 and Windows 10 (Win32 + Direct2D). A POSIX build configuration exists for compiling the core headless engine and CLI tests under Linux, but the graphical interface is Windows-native.
+> 3. **Platform Scope:** The desktop interface is a native Windows Win32/GDI application. Linux builds cover core and test targets, not a Linux desktop UI.
 
 See [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) and [`docs/SECURITY_THREAT_MODEL.md`](docs/SECURITY_THREAT_MODEL.md).
+
+<br>
+
+## Contributing
+
+Bug reports and focused pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the repository guidance in [AGENTS.md](AGENTS.md).
 
 <br>
 
@@ -455,5 +496,5 @@ See [`LICENSE_REVIEW.md`](LICENSE_REVIEW.md) and [`THIRD_PARTY_NOTICES.md`](THIR
 
 <p align="center">
   <sub>Radium Download Manager · High-performance, native open-source download management for Windows.</sub><br>
-  <sub>Built with C++20, Win32, and Direct2D. Free and open source forever.</sub>
+  <sub>Built with C++20 and Win32. Licensed under GPL-3.0-or-later.</sub>
 </p>
