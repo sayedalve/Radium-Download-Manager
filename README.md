@@ -396,6 +396,25 @@ All test suites pass with zero regressions. For details, consult:
 
 <br>
 
+## HTTP Server Compatibility
+
+Radium is designed to deliver resilient HTTP/HTTPS downloading across modern content distribution networks, dynamic object storage, and nonstandard or restrictive web servers. The download engine integrates strict RFC 9110 byte-range validation, adaptive connection scaling, and verified recovery procedures:
+
+- **Unannounced Byte-Range Support:** If a web server or CDN cache serves `200 OK` but omits the `Accept-Ranges: bytes` response header, Radium verifies range capabilities via a secondary probe for resources exceeding 128 KiB, enabling multi-connection segmented acceleration without manual configuration.
+- **Server Ignores Range Requests:** If a server advertises range support but subsequently ignores `Range:` headers by serving `200 OK` with full entity bodies, Radium detects the mismatch prior to writing disk chunks, aborts secondary streams, and merges unstarted stolen segments back into the primary stream for safe single-connection completion without byte overlaps or data corruption.
+- **Malformed & Broken Content-Range Headers:** When servers emit malformed, inverted, or out-of-bounds `Content-Range` headers (e.g. `start > end`, `end >= total`, or syntax corruption), Radium rejects the invalid range response. If the initial probe reveals broken range framing, it automatically falls back to an un-ranged single stream or aborts with descriptive error signaling rather than writing corrupt part files.
+- **RFC 9110 Section 14.4 Unsatisfied Ranges:** Handled distinctly for satisfied partial responses (`206`) versus unsatisfied boundary conditions (`416`). Genuine zero-byte resources returning `Content-Range: bytes */0` complete successfully as empty files, whereas unexpected `416` statuses during nonempty transfers trigger a safe abort without falsely marking incomplete part files as successful.
+- **Transient Rate Limiting & Overload (HTTP 429 & 503):** Radium parses both integer seconds and RFC 7231 / RFC 9110 HTTP-date timestamps in `Retry-After` headers. Under rate-limiting or server backpressure, it applies stepped concurrency reduction (`32 -> 16 -> 8 -> 4 -> 3 -> 2 -> 1`), retires redundant background workers to prevent server hammer collisions, and pauses active tasks into a user-action-resumable state when server-requested wait times exceed active worker limits.
+- **Midstream Disconnections & Resumption:** Connections terminated prematurely or reset by the remote host trigger automatic bounded retries with jittered exponential backoff. Surviving workers resume from verified disk cursors without discarding already-committed part file segments.
+- **Remote Entity & Validator Changes:** During paused or interrupted transfers, Radium verifies remote `ETag` and `Last-Modified` validators before resumption. Weak ETags (`W/"..."`) are omitted from `If-Range` requests per RFC 9110. If the remote resource changes (even if the file size remains identical), stale partial files are purged and the task is safely reset to prevent combining incompatible byte streams.
+- **Chunked Transfer Encoding & Indeterminate Sizes:** For dynamic streams or server responses omitting `Content-Length`, Radium streams through a zero-copy RFC 9112 chunked framing decoder in single-connection mode until clean EOF termination.
+- **Redirects & Security Scrubbing:** Radium follows up to 10 HTTP redirects across relative, absolute, and protocol-relative URIs, automatically stripping sensitive credentials (`Authorization`, `Cookie`) upon cross-origin domain shifts.
+
+> [!NOTE]
+> Web server configurations, proxies, and edge firewalls vary significantly. Certain non-standard servers (such as those returning corrupted byte streams, imposing CAPTCHA challenges, or mandating proprietary session handshakes) may prevent automated segmented acceleration or require single-stream browser capture.
+
+<br>
+
 ## Known Limitations
 
 > [!IMPORTANT]
