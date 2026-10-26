@@ -2,7 +2,7 @@
 
 **Document Status:** Proposed Contribution Policy  
 **Last Reviewed:** 2026-10-16  
-**Related Documents:** [AGENTS.md](AGENTS.md), [LICENSE_REVIEW.md](LICENSE_REVIEW.md), [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md), [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)
+**Related Documents:** [AGENTS.md](AGENTS.md), [docs/LICENSE_REVIEW.md](docs/LICENSE_REVIEW.md), [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md), [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md)
 
 ---
 
@@ -56,7 +56,7 @@ Every pull request must satisfy the following gates before merge:
 
 ## 4. Dependency & Third-Party Code Policy
 
-1. Do not introduce new third-party libraries without updating [docs/TECHNOLOGY_STACK.md](docs/TECHNOLOGY_STACK.md) and [LICENSE_REVIEW.md](LICENSE_REVIEW.md).
+1. Do not introduce new third-party libraries without updating [docs/TECHNOLOGY_STACK.md](docs/TECHNOLOGY_STACK.md) and [docs/LICENSE_REVIEW.md](docs/LICENSE_REVIEW.md).
 2. Any adapted algorithm or code from upstream projects ([Brisk](https://github.com/BrisklyDev/brisk), [Cat Catch](https://github.com/xifangczy/cat-catch), [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE)) must document its exact upstream repository URL, commit SHA/tag, and license in the file header and in [docs/UPSTREAM_PROJECT_ANALYSIS.md](docs/UPSTREAM_PROJECT_ANALYSIS.md).
 
 ---
@@ -70,4 +70,4 @@ Every pull request must satisfy the following gates before merge:
 
 ## 6. Contribution Licensing
 
-By submitting a contribution to this repository, you agree that your contribution is licensed under the project's primary license (**GNU General Public License v3.0 or later**, `GPL-3.0-or-later`), as detailed in [LICENSE_REVIEW.md](LICENSE_REVIEW.md).
+By submitting a contribution to this repository, you agree that your contribution is licensed under the project's primary license (**GNU General Public License v3.0 or later**, `GPL-3.0-or-later`), as detailed in [docs/LICENSE_REVIEW.md](docs/LICENSE_REVIEW.md).

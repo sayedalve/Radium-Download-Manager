@@ -2371,7 +2371,7 @@ std::vector<SettingItemView> DesktopView::BuildAllSettingItems() const {
     add_item(
         "ipc_endpoint_status", SettingsCategory::kBrowserIntegration, "Native Messaging & IPC Status",
         "Local IPC Endpoint (" + std::string(bstat.ipc_server_running ? "Listening" : "Offline") + ")",
-        "Host ID: com.flux.downloadmanager  |  Endpoint: " + bstat.ipc_endpoint,
+        "Host ID: com.radium.downloadmanager  |  Endpoint: " + bstat.ipc_endpoint,
         SettingControlType::kDiagnosticReadOnly,
         bstat.ipc_server_running ? "Connected" : "Standby", "Connected",
         bstat.ipc_server_running, false);

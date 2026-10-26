@@ -1,0 +1,10 @@
+{
+  "name": "com.radium.downloadmanager",
+  "description": "Radium Download Manager Native Messaging Host",
+  "path": "C:\\Program Files\\Radium Download Manager\\radium-nmh.exe",
+  "type": "stdio",
+  "allowed_extensions": [
+    "radium-extension@radiumdownloadmanager.org",
+    "flux-extension@fluxdownloadmanager.org"
+  ]
+}

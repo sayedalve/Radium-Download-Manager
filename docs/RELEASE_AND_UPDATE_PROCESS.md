@@ -3,7 +3,7 @@
 **Document Status:** Active Release Engineering Specification (`v0.3.0`)
 **Last Reviewed:** 2026-10-18
 **Scope:** Semantic versioning, release branching, CI artifact pipeline, cryptographic signing (Authenticode + Ed25519), third-party worker pinning, security advisories, and rollback procedures.
-**Related Documents:** [WINDOWS_BUILD_AND_PACKAGING.md](WINDOWS_BUILD_AND_PACKAGING.md), [SECURITY_THREAT_MODEL.md](SECURITY_THREAT_MODEL.md), [../LICENSE_REVIEW.md](../LICENSE_REVIEW.md), [adr/0008-packaging-and-updates.md](adr/0008-packaging-and-updates.md)
+**Related Documents:** [WINDOWS_BUILD_AND_PACKAGING.md](WINDOWS_BUILD_AND_PACKAGING.md), [SECURITY_THREAT_MODEL.md](SECURITY_THREAT_MODEL.md), [LICENSE_REVIEW.md](LICENSE_REVIEW.md), [adr/0008-packaging-and-updates.md](adr/0008-packaging-and-updates.md)
 
 ---
 

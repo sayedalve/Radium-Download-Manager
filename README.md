@@ -209,7 +209,7 @@ Tested on an authentic 2,140,143,616 byte ISO (`AlmaLinux-8.10-x86_64-minimal.is
 | **Peak Memory (RSS)** | ~42–45 MB | ~58–61 MB | Radium uses ~26% less RAM |
 | **Peak CPU Usage** | ~3.8–4.1% | ~5.2–5.8% | Radium uses ~27% less CPU |
 
-See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) and [`benchmarks/IDM_RADIUM_2GB_COMPARISON.md`](benchmarks/IDM_RADIUM_2GB_COMPARISON.md) for full trial records.
+See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) and [`benchmarks/results/IDM_RADIUM_2GB_COMPARISON.md`](benchmarks/results/IDM_RADIUM_2GB_COMPARISON.md) for full trial records.
 </details>
 
 <br>
@@ -432,7 +432,7 @@ Radium builds upon proven algorithms and utilities from the open-source communit
 | **State Database** | [SQLite](https://www.sqlite.org/) | Public Domain | Embedded ACID-compliant database with Write-Ahead Logging (WAL) |
 | **JSON Engine** | [nlohmann/json](https://github.com/nlohmann/json) | MIT | Structured JSON serialization for IPC and task import/export |
 
-See [`LICENSE_REVIEW.md`](LICENSE_REVIEW.md) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+See [`docs/LICENSE_REVIEW.md`](docs/LICENSE_REVIEW.md) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 <br>
 

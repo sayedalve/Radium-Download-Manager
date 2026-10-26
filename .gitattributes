@@ -1,0 +1,19 @@
+# Radium Download Manager Git Attributes & Linguist Overrides
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.iss text eol=crlf
+
+# Vendored third-party dependencies excluded from language statistics
+src/third_party/** linguist-vendored
+
+# Generated benchmark output and summaries
+benchmarks/**/*.json linguist-generated
+
+# Documentation and historical audit records
+docs/archive/** linguist-documentation
+*.cpp whitespace=cr-at-eol
+*.hpp whitespace=cr-at-eol
+*.iss whitespace=cr-at-eol
+*.ps1 whitespace=cr-at-eol

@@ -3,7 +3,7 @@
 **Document Status:** Verified Upstream Research  
 **Last Reviewed:** 2026-10-16  
 **Scope:** Technical and architectural investigation of Brisk, Brisk Browser Extension, Cat Catch, and N_m3u8DL-RE.  
-**Related Documents:** [../LICENSE_REVIEW.md](../LICENSE_REVIEW.md), [adr/0004-media-detection.md](adr/0004-media-detection.md), [adr/0005-download-engine-integration.md](adr/0005-download-engine-integration.md), [DOWNLOAD_ENGINE_DESIGN.md](DOWNLOAD_ENGINE_DESIGN.md), [MEDIA_DETECTION.md](MEDIA_DETECTION.md), [STREAM_DOWNLOAD_PIPELINE.md](STREAM_DOWNLOAD_PIPELINE.md)
+**Related Documents:** [LICENSE_REVIEW.md](LICENSE_REVIEW.md), [adr/0004-media-detection.md](adr/0004-media-detection.md), [adr/0005-download-engine-integration.md](adr/0005-download-engine-integration.md), [DOWNLOAD_ENGINE_DESIGN.md](DOWNLOAD_ENGINE_DESIGN.md), [MEDIA_DETECTION.md](MEDIA_DETECTION.md), [STREAM_DOWNLOAD_PIPELINE.md](STREAM_DOWNLOAD_PIPELINE.md)
 
 ---
 

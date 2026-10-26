@@ -206,6 +206,8 @@ def main():
             install_dir / "extension" / "manifest.json",
             install_dir / "extension" / "js" / "background.js",
             install_dir / "extension" / "popup.html",
+            install_dir / "manifests" / "com.radium.downloadmanager.chromium.json",
+            install_dir / "manifests" / "com.radium.downloadmanager.firefox.json",
             install_dir / "manifests" / "com.flux.downloadmanager.chromium.json",
             install_dir / "manifests" / "com.flux.downloadmanager.firefox.json",
             install_dir / "manifests" / "org.openidm.native.chromium.json",
@@ -227,7 +229,7 @@ def main():
 
         # Step 3: Verify Native Messaging Manifest Content and Registry Keys
         print("\n[Step 3/8] Verifying Native Messaging Manifest Paths and Registry Keys...")
-        manifest_file = install_dir / "manifests" / "com.flux.downloadmanager.chromium.json"
+        manifest_file = install_dir / "manifests" / "com.radium.downloadmanager.chromium.json"
         manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
         expected_nmh = (install_dir / "radium-nmh.exe" if (install_dir / "radium-nmh.exe").exists() else install_dir / "flux-nmh.exe").resolve()
         manifest_nmh = Path(manifest_data.get("path", "")).resolve()
@@ -236,6 +238,8 @@ def main():
 
         if winreg:
             reg_checks = [
+                r"Software\Google\Chrome\NativeMessagingHosts\com.radium.downloadmanager",
+                r"Software\Microsoft\Edge\NativeMessagingHosts\com.radium.downloadmanager",
                 r"Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager",
                 r"Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager",
             ]

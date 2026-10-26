@@ -66,13 +66,13 @@
 ## 4. Benchmark Documentation (`benchmarks/`)
 
 - **[../benchmarks/RESULTS.md](../benchmarks/RESULTS.md)** — Master benchmark registry, 500 MB comparative results against IDM, historical benchmarks, and raw artifact download instructions.
-- **[../benchmarks/IDM_RADIUM_2GB_COMPARISON.md](../benchmarks/IDM_RADIUM_2GB_COMPARISON.md)** — Dedicated 2.14 GB AlmaLinux ISO comparative transfer report.
-- **[../benchmarks/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md](../benchmarks/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md)** — Trial 1 live 500 MB benchmark report.
-- **[../benchmarks/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md](../benchmarks/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md)** — Trial 2 live 500 MB confirmation benchmark report (reversed order).
+- **[../benchmarks/results/IDM_RADIUM_2GB_COMPARISON.md](../benchmarks/results/IDM_RADIUM_2GB_COMPARISON.md)** — Dedicated 2.14 GB AlmaLinux ISO comparative transfer report.
+- **[../benchmarks/results/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md](../benchmarks/results/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md)** — Trial 1 live 500 MB benchmark report.
+- **[../benchmarks/results/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md](../benchmarks/results/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md)** — Trial 2 live 500 MB confirmation benchmark report (reversed order).
 
 - **[../benchmarks/results/LOCAL_BENCHMARK_TELEMETRY_CONSOLIDATED_REPORT.md](../benchmarks/results/LOCAL_BENCHMARK_TELEMETRY_CONSOLIDATED_REPORT.md)** — Consolidated local benchmark telemetry (16 MiB & 128 MiB synthetic loopback matrix).
 - **[benchmarks/REAL_WORLD_TEST_REPORT.md](benchmarks/REAL_WORLD_TEST_REPORT.md)** — Authoritative real-world test and UI evidence audit report.
-- **[release/SHA256SUMS.txt](release/SHA256SUMS.txt)** — Reference cryptographic checksums for release distributions.
+- **[LICENSE_REVIEW.md](LICENSE_REVIEW.md)** — Third-party license audits and GPL-3.0 compatibility verification.
 
 ---
 
