@@ -1,0 +1,31 @@
+name: Archive Benchmark Evidence
+
+on:
+  workflow_dispatch:
+
+jobs:
+  archive-evidence:
+    name: Archive Tracked Benchmark Raw Evidence
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Package Raw Benchmark Outputs
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "staging_archive"
+          Copy-Item -Recurse -Force "benchmarks" "staging_archive\benchmarks"
+          Write-Host "Staged benchmarks directory for artifact upload"
+          Get-ChildItem -Recurse "staging_archive" | Measure-Object -Property Length -Sum | ForEach-Object {
+            Write-Host "Total archive size: $([Math]::Round($_.Sum / 1MB, 2)) MB ($($_.Count) items)"
+          }
+
+      - name: Upload Raw Benchmark Evidence Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raw-benchmark-evidence-archive
+          path: staging_archive/benchmarks/
+          retention-days: 90
+          if-no-files-found: error
