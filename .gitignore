@@ -83,6 +83,9 @@ benchmarks/real_internet_work/
 benchmarks/work_2gb/
 benchmarks/fixtures/temp_*
 
+# Raw benchmark trial outputs (preserved in GitHub Actions artifact raw-benchmark-evidence-archive)
+benchmarks/results/**/*repeat*.json
+
 
 # Local helper scripts and artifacts
 *.torrent

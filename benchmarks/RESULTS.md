@@ -76,7 +76,22 @@ Full report: [`benchmarks/IDM_RADIUM_2GB_COMPARISON.md`](IDM_RADIUM_2GB_COMPARIS
 
 ---
 
-## 5. Verification Script
+## 5. Raw Evidence Retention & GitHub Actions Artifact Archives
+
+To prevent repository clone bloat while preserving scientific evidence and reproducibility:
+- **Compact Summaries & Reports:** Reusable test fixtures, Markdown reports, and structured `summary.json` rollups remain tracked directly in the repository under `benchmarks/results/`.
+- **Raw Multi-Repeat Trial Dumps:** Individual per-run trace dumps (`*repeat*.json`, totaling ~31.1 MB across 144 runs) are preserved in downloadable GitHub Actions workflow artifacts:
+  - **Archive Artifact Name:** `raw-benchmark-evidence-archive`
+  - **Source Workflow Run:** [Run #40286662496](https://github.com/sayedalve/Radium-Download-Manager/actions/runs/40286662496)
+  - **Retention:** 90 days (and re-uploaded on scheduled benchmark runs via `benchmark-comparison.yml` with a 30-day rolling window).
+  - **Download via GitHub CLI:**
+    ```powershell
+    gh run download 40286662496 -n raw-benchmark-evidence-archive -D ./benchmarks_raw_evidence
+    ```
+
+---
+
+## 6. Verification Script
 
 To verify all mathematical calculations across the benchmark reports, run the automated verification script:
 

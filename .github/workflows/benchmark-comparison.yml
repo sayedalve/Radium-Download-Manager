@@ -132,11 +132,13 @@ jobs:
         if: always()
         with:
           name: benchmark-comparison-results
+          retention-days: 30
           path: |
             benchmarks/latest_comparison.json
             benchmarks/latest_comparison.csv
             benchmarks/LATEST_COMPARISON.md
             benchmarks/benchmark_server.log
+            benchmarks/results/
           if-no-files-found: warn
 
       - name: Commit and Push Updated Benchmark Results
