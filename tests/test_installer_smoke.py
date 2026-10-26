@@ -238,16 +238,16 @@ def main():
 
         if winreg:
             reg_checks = [
-                r"Software\Google\Chrome\NativeMessagingHosts\com.radium.downloadmanager",
-                r"Software\Microsoft\Edge\NativeMessagingHosts\com.radium.downloadmanager",
-                r"Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager",
-                r"Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager",
+                (r"Software\Google\Chrome\NativeMessagingHosts\com.radium.downloadmanager", install_dir / "manifests" / "com.radium.downloadmanager.chromium.json"),
+                (r"Software\Microsoft\Edge\NativeMessagingHosts\com.radium.downloadmanager", install_dir / "manifests" / "com.radium.downloadmanager.chromium.json"),
+                (r"Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager", install_dir / "manifests" / "com.flux.downloadmanager.chromium.json"),
+                (r"Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager", install_dir / "manifests" / "com.flux.downloadmanager.chromium.json"),
             ]
-            for subkey in reg_checks:
+            for subkey, expected_mf in reg_checks:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey) as k:
                     val, _ = winreg.QueryValueEx(k, "")
-                    assert Path(val).resolve() == manifest_file.resolve(), (
-                        f"Registry key HKCU\\{subkey} points to '{val}' (expected '{manifest_file.resolve()}')"
+                    assert Path(val).resolve() == expected_mf.resolve(), (
+                        f"Registry key HKCU\\{subkey} points to '{val}' (expected '{expected_mf.resolve()}')"
                     )
                     print(f"  [Registry OK] HKCU\\{subkey} -> {val}")
         print("  -> PASS: Native Messaging manifests and registry bindings verified strictly")
