@@ -1,8 +1,8 @@
 # Release and Update Process Specification
 
-**Document Status:** Active Release Engineering Specification (`v0.3.0`)  
-**Last Reviewed:** 2026-10-18  
-**Scope:** Semantic versioning, release branching, CI artifact pipeline, cryptographic signing (Authenticode + Ed25519), third-party worker pinning, security advisories, and rollback procedures.  
+**Document Status:** Active Release Engineering Specification (`v0.3.0`)
+**Last Reviewed:** 2026-10-18
+**Scope:** Semantic versioning, release branching, CI artifact pipeline, cryptographic signing (Authenticode + Ed25519), third-party worker pinning, security advisories, and rollback procedures.
 **Related Documents:** [WINDOWS_BUILD_AND_PACKAGING.md](WINDOWS_BUILD_AND_PACKAGING.md), [SECURITY_THREAT_MODEL.md](SECURITY_THREAT_MODEL.md), [../LICENSE_REVIEW.md](../LICENSE_REVIEW.md), [adr/0008-packaging-and-updates.md](adr/0008-packaging-and-updates.md)
 
 ---
@@ -39,9 +39,9 @@ Every GitHub Release (`vX.Y.Z`) publishes the following complete artifact set:
 
 | Artifact Filename | Description | Verification / Compliance Purpose |
 | :--- | :--- | :--- |
-| `Flux-Setup-x64-vX.Y.Z.exe` | Dual-component Windows installer (`flux.exe`, `flux-nmh.exe`, optional stream workers). | Primary end-user installer with automatic browser manifest registration. |
-| `Flux-vX.Y.Z-Windows-x64-Full.zip` | Full offline portable archive with pre-bundled `N_m3u8DL-RE.exe` and `ffmpeg.exe`. | Self-contained, zero-download portable deployment for USB / testing. |
-| `Flux-vX.Y.Z-Windows-x64-Core.zip` | Lightweight core portable archive (`flux.exe`, `flux-nmh.exe`, extension, manifests; `< 2 MB`). | Minimal footprint option for users with existing FFmpeg in PATH. |
+| `Radium-Setup-x64-vX.Y.Z.exe` | Dual-component Windows installer (`radium.exe`, `radium-nmh.exe`, optional stream workers). | Primary end-user installer with automatic browser manifest registration. |
+| `Radium-vX.Y.Z-Windows-x64-Full.zip` | Full offline portable archive with pre-bundled `N_m3u8DL-RE.exe` and `ffmpeg.exe`. | Self-contained, zero-download portable deployment for USB / testing. |
+| `Radium-vX.Y.Z-Windows-x64-Core.zip` | Lightweight core portable archive (`radium.exe`, `radium-nmh.exe`, extension, manifests; `< 2 MB`). | Minimal footprint option for users with existing FFmpeg in PATH. |
 | `flux-extension-vX.Y.Z.zip` | Chromium MV3 extension bundle (Chrome, Edge, Brave, and Firefox). | Unpacked offline browser integration and store submission. |
 | `SHA256SUMS.txt` | Cryptographic SHA-256 digests of all release binaries and archives. | Tamper verification by users and package managers. |
 | `LICENSE` & `THIRD_PARTY_NOTICES.md` | GNU General Public License v3.0 and complete third-party notices. | Full compliance with GPL-3.0, MIT, and LGPL licensing requirements. |
@@ -52,8 +52,8 @@ Every GitHub Release (`vX.Y.Z`) publishes the following complete artifact set:
 
 ### 4.1 Update Verification Sequence
 When the user triggers **Check for Updates** (or enables periodic background checks):
-1. `flux.exe` fetches `update-manifest.json` over HTTPS (`WinHTTP` with TLS 1.2/1.3).
-2. Verifies the cryptographic signature over the raw bytes of `update-manifest.json` using the hardcoded public key compiled into `flux.exe`.
+1. `radium.exe` fetches `update-manifest.json` over HTTPS (`WinHTTP` with TLS 1.2/1.3).
+2. Verifies the cryptographic signature over the raw bytes of `update-manifest.json` using the hardcoded public key compiled into `radium.exe`.
 3. Compares `manifest.version` against current `APP_VERSION` (preventing downgrade attacks unless the user explicitly executes a manual installer).
 4. Downloads the installer `.exe` to `%LOCALAPPDATA%\Flux\updates\`, verifies its `SHA-256` against `manifest.sha256`, and executes the installer with `/SILENT` or interactive wizard prompt.
 

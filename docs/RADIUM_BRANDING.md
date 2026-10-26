@@ -1,7 +1,7 @@
 # Radium Download Manager — Product Identity & Branding Specification
 
-**Document Status:** Approved Product Branding Baseline  
-**Date:** 2026-10-20  
+**Document Status:** Approved Product Branding Baseline
+**Date:** 2026-10-26
 **Scope:** Defines the complete visual, typographic, naming, and architectural identity for **Radium Download Manager** across the desktop application, browser extension, in-page video overlay, installer, and documentation.
 
 ---
@@ -11,10 +11,11 @@
 | Attribute | Specification | Permitted Usage | Prohibited Usage |
 | :--- | :--- | :--- | :--- |
 | **Official Full Name** | **Radium Download Manager** | Main window title bar, installer welcome & finish pages, Add/Remove Programs display name, documentation titles, browser extension manifest name. | Never use "Flux" or "OpenIDM" as the current product name. |
-| **Short Brand Name** | **Radium** | System tray icon tooltip, extension badge, in-page download button ("Download in Radium"), toolbar buttons, dialog prompts, CLI banner. | Never use alone in legal notices or copyright declarations. |
+| **Short Brand Name** | **Radium** | System tray icon tooltip, extension badge, in-page download button ("Download with Radium"), toolbar buttons, dialog prompts, CLI banner. | Never use alone in legal notices or copyright declarations. |
 | **Abbreviation** | **RDM** | Compact UI labels, compact logos, release tags where short codes are required. | Do not use ambiguous abbreviations. |
 | **Executable Names** | `radium.exe`<br>`radium-nmh.exe` | Binary filenames on disk, Task Manager process list, start menu shortcuts, registry launch paths. (Compatibility aliases: `flux.exe`, `flux-nmh.exe`). | Do not rely on deprecated executable names in new distributions. |
-| **Native Host Identifier** | `com.flux.downloadmanager`<br>`org.openidm.native` | Browser native messaging registrations in Windows Registry and host JSON manifests (preserved for backward compatibility). | Do not break existing browser extension registrations. |
+| **Native Host Identifier** | `com.flux.downloadmanager`<br>`org.openidm.native` | Browser native messaging registrations in Windows Registry and host JSON manifests (preserved for backward compatibility with installed extensions). | Do not break existing browser extension registrations. |
+| **Named Pipe Identifier** | `\\.\pipe\Flux_IPC_<UserSID>` | ACL-restricted Windows Named Pipe endpoint for NMH-to-GUI communication (retained for backward compatibility). | Do not expose raw internal pipe paths to untrusted clients. |
 | **Application Data Path** | `%LOCALAPPDATA%\Radium Download Manager\` | Default directory for `state.db`, `radium.log`, `settings.json`, and temporary files. Automatically migrates legacy state from `%LOCALAPPDATA%\Flux` or `%LOCALAPPDATA%\OpenIDM`. | Never scatter files across user documents or system directories. |
 | **Default Download Path** | `%USERPROFILE%\Downloads\Radium\` | Default destination folder for completed user downloads. (Preserves legacy `%USERPROFILE%\Downloads\Flux` or `%USERPROFILE%\Downloads\OpenIDM` if present). | Do not download directly into root C:\ or temp folders. |
 
@@ -22,7 +23,7 @@
 
 ## 2. Color Palette & Visual Identity
 
-Radium employs a sophisticated, modern Windows 11 palette characterized by a **deep charcoal dark theme**, a **coral red accent**, and a crisp, high-contrast light theme.
+Radium employs a modern Windows 11 palette characterized by a **deep charcoal dark theme**, a **coral red accent**, and a crisp, high-contrast light theme.
 
 ```
        DEEP CHARCOAL DARK THEME                   CORAL RED ACCENT
@@ -62,8 +63,13 @@ Radium employs a sophisticated, modern Windows 11 palette characterized by a **d
 ## 3. Typography & Spacing System
 
 - **Primary Font Family**: `Segoe UI Variable`, `Segoe UI`, `-apple-system`, `sans-serif`.
-- **Monospace Code/Hash Font**: `Consolas`, `Cascadia Code`, `Courier New`, monospace.
-- **Base Grid**: 4px / 8px grid system for all layout padding, margins, and control heights.
+- **Monospace Font (Speeds, Sizes, Hashes)**: `Cascadia Code`, `Consolas`, `Courier New`, monospace.
+- **4px / 8px Grid**:
+  - `space_xs`: `4px`
+  - `space_sm`: `8px`
+  - `space_md`: `16px`
+  - `space_lg`: `24px`
+  - `space_xl`: `32px`
 - **Border Radius**: 6px for standard buttons and dialog cards; 8px for modal containers; 9999px for pills and badges.
 
 ---
@@ -74,3 +80,39 @@ Radium employs a sophisticated, modern Windows 11 palette characterized by a **d
 - **Desktop Executable Icon**: Multi-size Windows icon file (`radium.ico`) supporting 16x16, 24x24, 32x32, 48x48, and 256x256 dimensions.
 - **Browser Extension Icons**: PNG suite at 16x16, 32x32, 48x48, and 128x128 pixels in `extension/icons/`.
 - **System Tray Icon**: High-contrast icon rendered dynamically with GDI vector fallback.
+
+---
+
+## 5. In-Page Video Overlay Specifications
+
+- **Selector / Anchor**: Attached to HTML5 `<video>` elements with dimensions $\ge 240 \times 135\text{ px}$.
+- **Container**: Injected `<div data-radium-shadow-host="true">` with closed Shadow DOM (`attachShadow({ mode: "closed" })`) to prevent CSS/JS bleeding.
+- **Positioning**: Fixed position, `top: max(8px, rect.top + 10px)`, `left: max(8px, rect.right - 168px)` (top-right of player, never obstructing playback controls).
+- **Badge Copy**: `"Download with Radium"` (or `"DRM Protected (Unsupported)"` when DRM signaling is detected).
+- **Style**:
+  ```css
+  background: #161618;
+  color: #F2F2F3;
+  border: 1px solid #FF4757;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: 600 12px 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  ```
+
+---
+
+## 6. Backward Compatibility & Data Migration Rules
+
+To preserve user data across product migrations:
+1. When Radium launches, `PathSanitizer::GetDefaultAppDataDir()` resolves to `%LOCALAPPDATA%\Radium Download Manager`.
+2. If `%LOCALAPPDATA%\Radium Download Manager\state.db` does not exist, the startup sequence checks legacy locations:
+   - `%LOCALAPPDATA%\Flux\state.db`
+   - `%LOCALAPPDATA%\OpenIDM\state.db`
+3. If legacy data exists:
+   - Create `%LOCALAPPDATA%\Radium Download Manager\`.
+   - Copy `state.db`, `state.db-wal`, and settings cleanly into the new directory.
+   - Leave original files intact as a fallback safety measure.
+   - Log the successful migration in `radium.log`.
+4. **Internal IPC Compatibility:** The named pipe identifier `\\.\pipe\Flux_IPC_<UserSID>` and Native Messaging ID `com.flux.downloadmanager` are explicitly retained to ensure existing extension installs communicate without manual registry reconfiguration.

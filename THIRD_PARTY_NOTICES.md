@@ -1,6 +1,6 @@
 # Third-Party Software Notices and Licenses
 
-Flux Download Manager incorporates or integrates with the following open-source components:
+Radium Download Manager incorporates or integrates with the following open-source components:
 
 ---
 
@@ -55,7 +55,7 @@ SOFTWARE.
 - **Architectural Isolation:** Executed strictly as an isolated worker child process via Win32 `CreateProcessW` inside a restricted Windows Job Object. There is zero static or dynamic linking against `avcodec`, `avformat`, or `avutil` within `flux.exe` / `openidm.exe`.
 - **Minimal Configuration & Licensing Implications:**
   - Configured without `--enable-gpl` and without `--enable-nonfree`, ensuring the binary operates strictly under the terms of the LGPL v2.1+ / v3.0.
-  - Network protocols are completely disabled (`--disable-network`) so FFmpeg has zero socket creation or network attack surface; all network I/O is handled securely in-process by Flux's WinHTTP engine.
+  - Network protocols are completely disabled (`--disable-network`) so FFmpeg has zero socket creation or network attack surface; all network I/O is handled securely in-process by Radium's WinHTTP engine.
   - Heavy video encoders (`libx264`, `libx265`, `libvpx`, `svtav1`) are omitted, favoring fast stream copying (`-c copy`) without quality loss or excessive CPU utilization.
 - **Source Code Offer:**
   - FFmpeg source code is available at https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz (SHA-256: `40973D44970DBC83EF302B0609F2E74982BE2D85916DD2EE7472D30678A7ABE6`).

@@ -1,8 +1,8 @@
 # Browser Extension Architecture Specification
 
-**Document Status:** Proposed Subsystem Specification  
-**Last Reviewed:** 2026-10-16  
-**Scope:** Manifest V3 architecture, permissions minimization, background Service Worker, isolated content scripts, closed Shadow DOM video overlay, popup UI, and cross-browser packaging (`extension/`).  
+**Document Status:** Proposed Subsystem Specification
+**Last Reviewed:** 2026-10-16
+**Scope:** Manifest V3 architecture, permissions minimization, background Service Worker, isolated content scripts, closed Shadow DOM video overlay, popup UI, and cross-browser packaging (`extension/`).
 **Related Documents:** [MEDIA_DETECTION.md](MEDIA_DETECTION.md), [NATIVE_MESSAGING_AND_IPC.md](NATIVE_MESSAGING_AND_IPC.md), [PRIVACY_AND_DATA_HANDLING.md](PRIVACY_AND_DATA_HANDLING.md), [adr/0003-browser-communication.md](adr/0003-browser-communication.md), [adr/0004-media-detection.md](adr/0004-media-detection.md)
 
 ---
@@ -59,11 +59,11 @@ To minimize security risk and pass Chrome Web Store / Firefox AMO review without
 
 | Permission | Scope | Exact Engineering Justification | Why It Cannot Be Removed |
 | :--- | :--- | :--- | :--- |
-| **`nativeMessaging`** | Required | Allows `runtime.connectNative("com.flux.downloadmanager")` to spawn `flux-nmh.exe`. | Primary secure IPC mechanism (`ADR-0003`); eliminates localhost HTTP servers. |
-| **`downloads`** | Required | Allows listening to `downloads.onCreated` / `onDeterminingFilename` (`FR-008`) and canceling browser downloads once `flux.exe` accepts the task. | Required to intercept browser-initiated downloads automatically. |
+| **`nativeMessaging`** | Required | Allows `runtime.connectNative("com.flux.downloadmanager")` to spawn `radium-nmh.exe`. | Primary secure IPC mechanism (`ADR-0003`); eliminates localhost HTTP servers. |
+| **`downloads`** | Required | Allows listening to `downloads.onCreated` / `onDeterminingFilename` (`FR-008`) and canceling browser downloads once `radium.exe` accepts the task. | Required to intercept browser-initiated downloads automatically. |
 | **`webRequest`** | Required | Observational read-only access to `onBeforeSendHeaders` and `onHeadersReceived` to detect `.m3u8`/`.mpd` manifests and capture transient `Referer`/`Cookie` headers (`FR-014`). | Without `webRequest`, MSE-fetched manifests (`hls.js`/`dash.js`) are invisible to isolated content scripts. |
 | **`storage`** | Required | Stores user exclusion lists (`chrome.storage.sync`/`local`) and survives MV3 Service Worker suspension via `chrome.storage.session` (`RISK-002`). | Required for MV3 state persistence. |
-| **`contextMenus`** | Required | Adds `"Download with Flux"` and `"Download selected links with Flux"` (`FR-010`). | Required for right-click user workflows. |
+| **`contextMenus`** | Required | Adds `"Download with Radium"` and `"Download selected links with Radium"` (`FR-010`). | Required for right-click user workflows. |
 | **`scripting`** | Required | Dynamically executes or injects the Layer 3 `MAIN`-world hook (`catch.js`) into webpage DOM (`FR-017`, `BUG-032`). | Allows deep search for obfuscated HLS/DASH streams in page JavaScript context. |
 | **`tabs`** | Required | Queries active tab info and URLs for media classification, watch URL guard, and badge counts. | Required for popup tab binding and per-site capture toggle. |
 | **`host_permissions`: `["*://*/*"]`** | Required | Needed by `webRequest` to observe media CDN requests (which are almost always hosted on third-party CDN domains different from the tab's top-level origin, e.g., `*.akamaized.net`, `*.cloudfront.net`). | Cross-origin CDN requests cannot be observed with `activeTab` alone. |
@@ -119,7 +119,7 @@ To minimize security risk and pass Chrome Web Store / Firefox AMO review without
 
 3. **Chrome `onDeterminingFilename` Coordination:**
    - In Chromium browsers (Chrome, Edge, Brave), `chrome.downloads.onDeterminingFilename` receives the download with full HTTP response headers (`Content-Disposition`, MIME type, redirected final URL).
-   - The event natively holds the browser file save prompt while `background.js` checks eligibility and queries `flux.exe` via `download.offer` over Native Messaging.
+   - The event natively holds the browser file save prompt while `background.js` checks eligibility and queries `radium.exe` via `download.offer` over Native Messaging.
    - **Acceptance:** If Flux accepts, `suggest()` is called and `chrome.downloads.cancel()` cleanly cancels the browser download while Flux handles the segmented download.
    - **Offline / Declined / Timeout:** If Flux is offline, times out (5000 ms), or declines, `suggest()` is resolved and `chrome.downloads.resume()` is called, allowing the browser to download the file without user disruption.
 
@@ -178,7 +178,8 @@ Chromium uses `webNavigation.onHistoryStateUpdated` and `onReferenceFragmentUpda
 
 ### Bounded direct-media size lookup
 
-When a direct progressive media response has no trustworthy size, the service worker performs one per-URL lookup: an authenticated-cookie `HEAD` request followed, only when needed, by a `Range: bytes=0-0` request. The range body is canceled immediately; an unknown result is shown as “Checking size…” or “Size unknown”. The probe has a five-minute per-candidate retry guard and only updates a candidate still present in that tab's current list. The deterministic test covers HEAD failure, Content-Range total extraction, and body cancellation. Browser-specific authorization and server behavior remain environment-dependent.
+When a direct progressive media response has no trustworthy size, the service worker performs one per-URL lookup: an authenticated-cookie `HEAD` request followed, only when needed, by a `Range: bytes=0-0` request. The range body is canceled immediately; an unknown result is shown as "Checking size
+" or "Size unknown". The probe has a five-minute per-candidate retry guard and only updates a candidate still present in that tab's current list. The deterministic test covers HEAD failure, Content-Range total extraction, and body cancellation. Browser-specific authorization and server behavior remain environment-dependent.
 
 ### Stable installation diagnostics
 

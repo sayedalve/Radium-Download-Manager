@@ -1,8 +1,8 @@
 # Native Messaging and Local IPC Protocol Specification
 
-**Document Status:** Proposed Protocol Specification  
-**Last Reviewed:** 2026-10-16  
-**Scope:** End-to-end wire protocol, message schemas, authentication, timeouts, error codes, and lifecycle management between the Browser Extension, `openidm-nmh.exe`, and `openidm.exe`.  
+**Document Status:** Proposed Protocol Specification
+**Last Reviewed:** 2026-10-16
+**Scope:** End-to-end wire protocol, message schemas, authentication, timeouts, error codes, and lifecycle management between the Browser Extension, `openidm-nmh.exe`, and `openidm.exe`.
 **Related Documents:** [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md), [BROWSER_EXTENSION.md](BROWSER_EXTENSION.md), [SECURITY_THREAT_MODEL.md](SECURITY_THREAT_MODEL.md), [adr/0003-browser-communication.md](adr/0003-browser-communication.md)
 
 ---
@@ -56,7 +56,7 @@ Registered at `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.flux.do
 {
   "name": "com.flux.downloadmanager",
   "description": "Flux Download Manager Native Messaging Host",
-  "path": "C:\\Program Files\\Flux Download Manager\\flux-nmh.exe",
+  "path": "C:\\Program Files\\Flux Download Manager\\radium-nmh.exe",
   "type": "stdio",
   "allowed_origins": [
     "chrome-extension://mdgmlcnpodoehidlplplfegngnjnilap/",
@@ -98,10 +98,10 @@ Registered at `HKCU\\Software\\Mozilla\\NativeMessagingHosts\\org.openidm.native
 ## 5. Message Catalog & JSON-RPC 2.0 Schemas
 
 ### 5.1 Limits, Timeouts, and Version Negotiation
-- **Max Message Size:** `1,048,576` bytes (`1 MiB`, matching Chromium's Native Messaging host-to-extension limit). `flux-nmh.exe` enforces this limit on stdout frames, returning a standard JSON-RPC 2.0 error frame (`-32603`) if an outgoing response exceeds 1 MiB instead of causing browser host termination. Both NMH and desktop drop incoming frames exceeding 1 MiB.
+- **Max Message Size:** `1,048,576` bytes (`1 MiB`, matching Chromium's Native Messaging host-to-extension limit). `radium-nmh.exe` enforces this limit on stdout frames, returning a standard JSON-RPC 2.0 error frame (`-32603`) if an outgoing response exceeds 1 MiB instead of causing browser host termination. Both NMH and desktop drop incoming frames exceeding 1 MiB.
 - **Version Negotiation:** Major.Minor (`"1.0"`). If `major` versions differ, `system.handshake` returns error `-32001` (`ERR_IPC_VERSION_MISMATCH`) and the extension displays an `"Update OpenIDM Desktop / Extension"` banner.
 - **Timeouts & Concurrency:**
-  - `system.handshake`: `1,500 ms` (allows time for cold start of `flux.exe --daemon`).
+  - `system.handshake`: `1,500 ms` (allows time for cold start of `radium.exe --daemon`).
   - `download.offer`: `5,000 ms` (if exceeded, extension safely resumes download in browser).
   - `stream.add`: `2,000 ms` (acknowledges receipt and opens desktop Track Selection dialog).
   - **Named Pipe Concurrency:** Client connection attempts in `src/nmh/main.cpp` intercept `ERROR_PIPE_BUSY` from `CreateFileW` and call `WaitNamedPipeW(..., 3000)` to wait for an available pipe instance, preventing false offline detections and duplicate background daemon spawns under concurrent tab requests.
@@ -197,6 +197,6 @@ Registered at `HKCU\\Software\\Mozilla\\NativeMessagingHosts\\org.openidm.native
    - When the desktop app is offline (`ERR_IPC_DESKTOP_UNAVAILABLE`), disconnected (`ERR_IPC_DISCONNECTED`), or returns a bad frame (`ERR_IPC_BAD_RESPONSE`), the NMH echoes the exact incoming request `id` (e.g. `{"jsonrpc":"2.0","id":"ext-1","error":{...}}`) rather than returning a generic `null` id.
 
 3. **Disconnection Recovery & 5,000 ms Timeout:**
-   - If the Native Messaging port disconnects or `flux.exe` does not respond within 5,000 ms, the extension aborts the RPC wait, resolves `suggest({ filename })`, and resumes the native browser download without hanging the user's browser.
+   - If the Native Messaging port disconnects or `radium.exe` does not respond within 5,000 ms, the extension aborts the RPC wait, resolves `suggest({ filename })`, and resumes the native browser download without hanging the user's browser.
    - Named Pipe reconnects wait on `WaitNamedPipeW` with 3,000 ms timeout upon `ERROR_PIPE_BUSY` to prevent thrashing under concurrent multi-tab downloads.
    - **Logging & Redaction:** The IPC layer never logs `params.headers.Cookie`, `Authorization`, or sensitive query parameters matching token patterns (`NFR-009`).

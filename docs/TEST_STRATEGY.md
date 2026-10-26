@@ -1,8 +1,8 @@
 # Test Strategy Specification
 
-**Document Status:** Proposed Test Architecture  
-**Last Reviewed:** 2026-10-16  
-**Scope:** Unit, deterministic local integration, browser end-to-end, security fuzzing, crash recovery, and installer validation strategy.  
+**Document Status:** Proposed Test Architecture
+**Last Reviewed:** 2026-10-16
+**Scope:** Unit, deterministic local integration, browser end-to-end, security fuzzing, crash recovery, and installer validation strategy.
 **Related Documents:** [TEST_MATRIX.md](TEST_MATRIX.md), [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md), [SECURITY_THREAT_MODEL.md](SECURITY_THREAT_MODEL.md), [ERROR_HANDLING_AND_RECOVERY.md](ERROR_HANDLING_AND_RECOVERY.md)
 
 ---
@@ -67,8 +67,8 @@ flowchart TD
 ### 4.1 Job Breakdown & Responsibilities
 
 1. **Job 1: `build-and-package` (Windows x64):**
-   - Compiles native C++20 targets (`flux.exe`, `flux-nmh.exe`, `flux_unit_tests.exe`, `N_m3u8DL-RE.exe`).
-   - Executes C++ regression suite (`flux_unit_tests.exe`), Node.js extension unit tests (`test_extension_detection.js`), Python integration tests (`run_all_integration_tests.py`), and performance benchmarks (`run-benchmarks.py`).
+   - Compiles native C++20 targets (`radium.exe`, `radium-nmh.exe`, `radium_unit_tests.exe`, `N_m3u8DL-RE.exe`).
+   - Executes C++ regression suite (`radium_unit_tests.exe`), Node.js extension unit tests (`test_extension_detection.js`), Python integration tests (`run_all_integration_tests.py`), and performance benchmarks (`run-benchmarks.py`).
    - Compiles Inno Setup 6 installers (Full Offline and Core-Only) and packages standalone portable ZIP archives (`package-release-zip.ps1`).
    - Audits package size budgets (`report-package-sizes.ps1 -FailOnExceeded`) and release security integrity (`verify-release-security.ps1`).
    - Uploads distribution packages and test evidence as GitHub Actions artifacts.
@@ -79,7 +79,7 @@ flowchart TD
      - Installs Full setup installer silently (`/VERYSILENT /DIR=... /TYPE=full`).
      - Verifies application version, PE32+ AMD64 headers, bundled stream workers (`N_m3u8DL-RE.exe`, `ffmpeg.exe`, `yt-dlp.exe`), extension assets, and native messaging manifests (`com.flux.downloadmanager.chromium.json`).
      - Confirms HKCU registry bindings for Chrome and Edge.
-     - Performs a real HTTP download through installed `flux.exe` against a controlled local test server and verifies exact byte size and SHA-256 digest.
+     - Performs a real HTTP download through installed `radium.exe` against a controlled local test server and verifies exact byte size and SHA-256 digest.
      - Injects network reset to verify auto-resume, verifies 404 error exit code, checks zero leftover `.part` files, and verifies database restart persistence.
      - Launches installed application daemon and runs end-to-end positive Native Messaging exchange with Chromium, confirming `system.handshake`, `download.offer`, and SQLite task queue recording.
      - Uninstalls silently (`unins000.exe /VERYSILENT`) and verifies binary removal while strictly preserving `%LOCALAPPDATA%\Flux` user data.
