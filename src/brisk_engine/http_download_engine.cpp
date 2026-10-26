@@ -8,7 +8,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
+#include <sstream>
 #include <thread>
 
 #ifdef _WIN32
@@ -114,6 +116,100 @@ private:
 
 } // namespace
 
+namespace {
+bool HttpRangeTraceEnabled() {
+    return std::getenv("RADIUM_HTTP_RANGE_TRACE") != nullptr;
+}
+
+uint64_t TraceEpochMilliseconds() {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count());
+}
+
+uint64_t TraceElapsedMicroseconds(const std::chrono::steady_clock::time_point& origin) {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - origin).count());
+}
+
+void EmitRuntimeTrace(const std::string& event) {
+    if (HttpRangeTraceEnabled()) {
+        std::string timed_event = event;
+        if (!timed_event.empty() && timed_event.back() == '}') {
+            timed_event.pop_back();
+            const auto steady_tick_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            timed_event += ",\"steady_tick_us\":" + std::to_string(steady_tick_us) + "}";
+        }
+        OPENIDM_LOG_INFO("HttpRangeTrace", "HTTP_RUNTIME_TRACE " + timed_event);
+    }
+}
+
+void EmitHttpPhaseTrace(const char* phase, const std::chrono::steady_clock::time_point& origin) {
+    if (HttpRangeTraceEnabled()) {
+        OPENIDM_LOG_INFO("HttpRangeTrace", std::string("HTTP_PHASE_TRACE phase=") + phase +
+            " elapsed_us=" + std::to_string(TraceElapsedMicroseconds(origin)));
+    }
+}
+
+class RuntimeTimedLock {
+public:
+    RuntimeTimedLock(std::mutex& mutex, const char* lock_name, const char* operation,
+                     uint64_t request_id = 0, uint32_t worker = 0, uint32_t segment = 0)
+        : m_lock(mutex, std::defer_lock), m_lock_name(lock_name), m_operation(operation),
+          m_request_id(request_id), m_worker(worker), m_segment(segment), m_enabled(HttpRangeTraceEnabled()) {
+        const auto wait_start = m_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        m_lock.lock();
+        if (m_enabled) {
+            m_acquired = std::chrono::steady_clock::now();
+            m_wait_us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(m_acquired - wait_start).count());
+        }
+    }
+
+    ~RuntimeTimedLock() {
+        if (!m_enabled) return;
+        const auto released = std::chrono::steady_clock::now();
+        const uint64_t hold_us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(released - m_acquired).count());
+        m_lock.unlock();
+        EmitRuntimeTrace("{\"event\":\"lock_timing\",\"lock\":\"" + std::string(m_lock_name) +
+            "\",\"operation\":\"" + m_operation + "\",\"request_id\":" + std::to_string(m_request_id) +
+            ",\"worker\":" + std::to_string(m_worker) + ",\"segment\":" + std::to_string(m_segment) +
+            ",\"wait_us\":" + std::to_string(m_wait_us) + ",\"hold_us\":" + std::to_string(hold_us) + "}");
+    }
+
+    RuntimeTimedLock(const RuntimeTimedLock&) = delete;
+    RuntimeTimedLock& operator=(const RuntimeTimedLock&) = delete;
+
+private:
+    std::unique_lock<std::mutex> m_lock;
+    const char* m_lock_name;
+    const char* m_operation;
+    uint64_t m_request_id{0};
+    uint32_t m_worker{0};
+    uint32_t m_segment{0};
+    bool m_enabled{false};
+    uint64_t m_wait_us{0};
+    std::chrono::steady_clock::time_point m_acquired{};
+};
+
+class RuntimeDurationAccumulator {
+public:
+    RuntimeDurationAccumulator(uint64_t& total_us, bool enabled)
+        : m_total_us(total_us), m_enabled(enabled), m_start(enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{}) {}
+    ~RuntimeDurationAccumulator() {
+        if (m_enabled) {
+            m_total_us += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - m_start).count());
+        }
+    }
+    RuntimeDurationAccumulator(const RuntimeDurationAccumulator&) = delete;
+    RuntimeDurationAccumulator& operator=(const RuntimeDurationAccumulator&) = delete;
+private:
+    uint64_t& m_total_us;
+    bool m_enabled{false};
+    std::chrono::steady_clock::time_point m_start{};
+};
+} // namespace
+
 HttpDownloadEngine::HttpDownloadEngine(EngineConfig cfg) : m_cfg(cfg) {}
 HttpDownloadEngine::~HttpDownloadEngine() = default;
 
@@ -125,6 +221,12 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
     ProgressCallback on_progress,
     std::shared_ptr<TokenBucketLimiter> global_limiter,
     std::atomic<uint64_t>* global_speed_limit_bps) {
+
+    const bool http_trace_enabled = HttpRangeTraceEnabled();
+    const auto engine_start_tp = std::chrono::steady_clock::now();
+    std::atomic<uint64_t> next_trace_request_id{0};
+    std::atomic<uint32_t> active_http_requests{0};
+    EmitHttpPhaseTrace("initialization_start", engine_start_tp);
 
     auto task_limiter = std::make_shared<TokenBucketLimiter>();
 
@@ -151,6 +253,15 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
     task.status_detail = "Probing server & headers...";
     HttpResponseMeta probe_meta;
     std::atomic<bool> probe_cancel{false};
+    const uint64_t probe_request_id = http_trace_enabled ? next_trace_request_id.fetch_add(1, std::memory_order_relaxed) + 1 : 0;
+    const auto probe_request_start = std::chrono::steady_clock::now();
+    const uint32_t active_at_probe_start = active_http_requests.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (http_trace_enabled) {
+        EmitRuntimeTrace("{\"event\":\"request_start\",\"request_id\":" + std::to_string(probe_request_id) +
+            ",\"request_kind\":\"probe\",\"worker\":-1,\"segment\":-1,\"range_start\":0,\"range_end\":0" +
+            ",\"elapsed_us\":" + std::to_string(TraceElapsedMicroseconds(engine_start_tp)) +
+            ",\"active_requests\":" + std::to_string(active_at_probe_start) + "}");
+    }
 
     auto probe_res = HttpClient::PerformGet(
         task.url,
@@ -166,6 +277,19 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         },
         nullptr,
         m_cfg.net_opts);
+    const uint32_t active_after_probe = active_http_requests.fetch_sub(1, std::memory_order_relaxed) - 1;
+    if (http_trace_enabled) {
+        const auto probe_request_end = std::chrono::steady_clock::now();
+        EmitRuntimeTrace("{\"event\":\"request_end\",\"request_id\":" + std::to_string(probe_request_id) +
+            ",\"request_kind\":\"probe\",\"status\":" + std::to_string(probe_meta.status_code) +
+            ",\"response_start\":" + std::to_string(probe_meta.range_start) +
+            ",\"response_end\":" + std::to_string(probe_meta.range_end) +
+            ",\"client_bytes_received\":0,\"file_bytes_written\":0,\"elapsed_us\":" +
+            std::to_string(TraceElapsedMicroseconds(engine_start_tp)) + ",\"duration_us\":" +
+            std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(probe_request_end - probe_request_start).count()) +
+            ",\"active_requests\":" + std::to_string(active_after_probe) +
+            ",\"outcome\":\"" + (probe_res.ok() ? std::string("complete") : std::string("failed")) + "\"}");
+    }
 
     // FDM-020: If probe is rate-limited (HTTP 429), back off using Retry-After
     // and retry a bounded number of times. Servers may apply per-IP rate
@@ -579,25 +703,47 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         std::atomic<bool> fatal_abort{false};
         std::atomic<bool> disable_splitting{false};
         std::atomic<uint32_t> running_workers{0};
+        auto transfer_start_tp = std::chrono::steady_clock::now();
         std::mutex err_mu;
         std::optional<Error> fatal_error;
 
-        auto worker_fn = [&](uint32_t /*worker_idx*/) {
+        auto worker_fn = [&](uint32_t worker_idx) {
             running_workers.fetch_add(1, std::memory_order_relaxed);
+            if (http_trace_enabled) {
+                EmitRuntimeTrace("{\"event\":\"worker_start\",\"worker\":" + std::to_string(worker_idx) +
+                    ",\"elapsed_us\":" + std::to_string(TraceElapsedMicroseconds(engine_start_tp)) +
+                    ",\"active_workers\":" + std::to_string(running_workers.load()) + "}");
+            }
+            uint64_t idle_wait_us = 0;
+            uint64_t queue_wait_us = 0;
+            uint64_t queue_wait_count = 0;
+            auto stop_worker = [&]() {
+                const uint32_t active_workers = running_workers.fetch_sub(1, std::memory_order_relaxed) - 1;
+                if (http_trace_enabled) {
+                    EmitRuntimeTrace("{\"event\":\"worker_stop\",\"worker\":" + std::to_string(worker_idx) +
+                        ",\"elapsed_us\":" + std::to_string(TraceElapsedMicroseconds(engine_start_tp)) +
+                        ",\"active_workers\":" + std::to_string(active_workers) +
+                        ",\"idle_wait_us\":" + std::to_string(idle_wait_us) +
+                        ",\"queue_wait_us\":" + std::to_string(queue_wait_us) +
+                        ",\"queue_wait_count\":" + std::to_string(queue_wait_count) + "}");
+                }
+            };
             while (!fatal_abort.load() && !pause_requested.load() && !cancel_requested.load()) {
+                const auto wait_started = std::chrono::steady_clock::now();
                 auto seg = scheduler.AcquireNextOrStealSegment(!disable_splitting.load());
+                const bool initially_waiting_for_segment = !seg;
                 if (!seg) {
                     if (scheduler.AllCompleted()) {
                         break;
                     }
-                    // Back off briefly in case a running segment becomes eligible for work-stealing soon
+                    // Wait for work while uncompleted data remains in the scheduler
                     bool acquired = false;
-                    for (int idle_retry = 0; idle_retry < 15; ++idle_retry) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    for (int idle_retry = 0; idle_retry < 300; ++idle_retry) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(20));
                         if (fatal_abort.load() || pause_requested.load() || cancel_requested.load() || scheduler.AllCompleted()) {
                             break;
                         }
-                        if (scheduler.CanSplitAnySegment()) {
+                        if (scheduler.CanSplitAnySegment() || scheduler.HasIncompleteUnassignedSegment()) {
                             seg = scheduler.AcquireNextOrStealSegment(!disable_splitting.load());
                             if (seg) {
                                 acquired = true;
@@ -606,8 +752,20 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                         }
                     }
                     if (!acquired && !seg) {
+                        const uint64_t wait_us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now() - wait_started).count());
+                        idle_wait_us += wait_us;
+                        queue_wait_us += wait_us;
+                        ++queue_wait_count;
                         break;
                     }
+                }
+                const uint64_t acquisition_wait_us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - wait_started).count());
+                idle_wait_us += acquisition_wait_us;
+                if (initially_waiting_for_segment) {
+                    queue_wait_us += acquisition_wait_us;
+                    ++queue_wait_count;
                 }
 
                 int retries = 0;
@@ -624,6 +782,31 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                     std::atomic<bool> req_cancel{false};
                     bool server_ignored_range = false;
                     int captured_retry_after_sec = 0; // captured from on_headers for 429 backoff
+                    const uint64_t trace_request_id = http_trace_enabled
+                        ? next_trace_request_id.fetch_add(1, std::memory_order_relaxed) + 1 : 0;
+                    const auto request_start_tp = std::chrono::steady_clock::now();
+                    const uint64_t request_start_epoch_ms = http_trace_enabled ? TraceEpochMilliseconds() : 0;
+                    const uint32_t active_at_start = active_http_requests.fetch_add(1, std::memory_order_relaxed) + 1;
+                    uint64_t client_bytes_received = 0;
+                    uint64_t file_bytes_written = 0;
+                    uint64_t file_write_duration_us = 0;
+                    uint64_t file_write_max_duration_us = 0;
+                    uint64_t file_write_count = 0;
+                    uint64_t callback_processing_us = 0;
+                    uint64_t limiter_wait_us = 0;
+                    uint64_t response_content_length = 0;
+                    uint64_t response_range_start = 0;
+                    uint64_t response_range_end = 0;
+                    int response_status = 0;
+                    std::string cancel_reason;
+
+                    if (http_trace_enabled) {
+                        EmitRuntimeTrace("{\"event\":\"request_start\",\"request_id\":" + std::to_string(trace_request_id) +
+                            ",\"worker\":" + std::to_string(worker_idx) + ",\"segment\":" + std::to_string(seg->segment_id) +
+                            ",\"range_start\":" + std::to_string(curr) + ",\"range_end\":" + std::to_string(end) +
+                            ",\"elapsed_us\":" + std::to_string(TraceElapsedMicroseconds(engine_start_tp)) +
+                            ",\"active_requests\":" + std::to_string(active_at_start) + "}");
+                    }
 
                     auto res = HttpClient::PerformGet(
                         task.url,
@@ -634,6 +817,10 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                         m_cfg.allow_loopback_redirect,
                         req_cancel,
                         [&](const HttpResponseMeta& meta) -> HeaderAction {
+                            response_status = meta.status_code;
+                            response_content_length = meta.content_length;
+                            response_range_start = meta.range_start;
+                            response_range_end = meta.range_end;
                             captured_retry_after_sec = meta.retry_after_sec;
                             if (meta.status_code == 429 || meta.status_code >= 500) {
                                 return HeaderAction::kAbort;
@@ -667,21 +854,39 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                                 fatal_abort.store(true);
                                 return HeaderAction::kAbort;
                             }
+                            // The new request may clear a pending split only if it
+                            // was created with the scheduler's current end bound.
+                            {
+                                RuntimeTimedLock split_lock(seg->write_mu, "segment_write", "header_split_check",
+                                    trace_request_id, worker_idx, seg->segment_id);
+                                if (seg->end_offset.load() == end) {
+                                    seg->split_pending.store(false);
+                                }
+                            }
                             return HeaderAction::kContinue;
                         },
                         [&](const uint8_t* data, size_t len) -> bool {
+                            RuntimeDurationAccumulator callback_timer(callback_processing_us, http_trace_enabled);
+                            client_bytes_received += static_cast<uint64_t>(len);
                             if (fatal_abort.load() || pause_requested.load() || cancel_requested.load()) {
+                                cancel_reason = pause_requested.load() ? "user_pause" :
+                                    (cancel_requested.load() ? "user_cancel" : "fatal_abort");
                                 req_cancel.store(true);
                                 return false;
                             }
 
+                            const auto limiter_started = std::chrono::steady_clock::now();
                             consume_both_limiters(len, req_cancel);
+                            limiter_wait_us += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - limiter_started).count());
 
-                            std::lock_guard<std::mutex> write_lk(seg->write_mu);
+                            RuntimeTimedLock write_lk(seg->write_mu, "segment_write", "body_write_callback",
+                                trace_request_id, worker_idx, seg->segment_id);
                             uint64_t write_pos = seg->current_offset.load();
                             uint64_t current_end = seg->end_offset.load();
                             if (write_pos > current_end) {
                                 seg->completed.store(true);
+                                cancel_reason = current_end < end ? "range_split" : "segment_complete";
                                 req_cancel.store(true);
                                 return false;
                             }
@@ -689,21 +894,35 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                             uint64_t max_writable = (current_end >= write_pos) ? (current_end - write_pos + 1) : 0;
                             if (max_writable == 0) {
                                 seg->completed.store(true);
+                                cancel_reason = current_end < end ? "range_split" : "segment_complete";
                                 req_cancel.store(true);
                                 return false;
                             }
                             size_t to_write = static_cast<size_t>(std::min<uint64_t>(static_cast<uint64_t>(len), max_writable));
 
-                            if (!part_file.PWrite(data, to_write, write_pos)) {
+                            const auto file_write_start = http_trace_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                            const bool file_write_ok = part_file.PWrite(data, to_write, write_pos);
+                            if (http_trace_enabled) {
+                                const auto file_write_end = std::chrono::steady_clock::now();
+                                const uint64_t write_us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                    file_write_end - file_write_start).count());
+                                file_write_duration_us += write_us;
+                                file_write_max_duration_us = std::max(file_write_max_duration_us, write_us);
+                                ++file_write_count;
+                            }
+                            if (!file_write_ok) {
                                 std::lock_guard<std::mutex> lk(err_mu);
                                 fatal_error = Error{"ERR_DISK_FULL", "Disk write failed on segment", false, true};
                                 fatal_abort.store(true);
                                 req_cancel.store(true);
+                                cancel_reason = "disk_write_error";
                                 return false;
                             }
 
                             seg->current_offset.fetch_add(to_write);
+                            file_bytes_written += static_cast<uint64_t>(to_write);
                             if (to_write < len || seg->current_offset.load() > seg->end_offset.load()) {
+                                cancel_reason = seg->end_offset.load() < end ? "range_split" : "segment_complete";
                                 if (seg->current_offset.load() > seg->end_offset.load()) {
                                     seg->completed.store(true);
                                 }
@@ -714,10 +933,69 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                         },
                         m_cfg.net_opts);
 
+                    const uint32_t active_after_request = active_http_requests.fetch_sub(1, std::memory_order_relaxed) - 1;
+
+                    if (http_trace_enabled) {
+                        const auto request_end_tp = std::chrono::steady_clock::now();
+                        const uint64_t request_end_epoch_ms = TraceEpochMilliseconds();
+                        const double start_ms = std::chrono::duration<double, std::milli>(request_start_tp - transfer_start_tp).count();
+                        const double end_ms = std::chrono::duration<double, std::milli>(request_end_tp - transfer_start_tp).count();
+                        const bool body_complete = response_status > 0 && response_content_length > 0 &&
+                            client_bytes_received >= response_content_length;
+                        const std::string outcome = body_complete ? "complete" :
+                            (!cancel_reason.empty() ? "cancelled" : "failed");
+                        EmitRuntimeTrace("{\"event\":\"request_end\",\"request_id\":" + std::to_string(trace_request_id) +
+                            ",\"worker\":" + std::to_string(worker_idx) + ",\"status\":" + std::to_string(response_status) +
+                            ",\"response_start\":" + std::to_string(response_range_start) +
+                            ",\"response_end\":" + std::to_string(response_range_end) +
+                            ",\"response_content_length\":" + std::to_string(response_content_length) +
+                            ",\"client_bytes_received\":" + std::to_string(client_bytes_received) +
+                            ",\"file_bytes_written\":" + std::to_string(file_bytes_written) +
+                            ",\"file_write_duration_us\":" + std::to_string(file_write_duration_us) +
+                            ",\"file_write_max_duration_us\":" + std::to_string(file_write_max_duration_us) +
+                            ",\"file_write_count\":" + std::to_string(file_write_count) +
+                            ",\"callback_processing_us\":" + std::to_string(callback_processing_us) +
+                            ",\"limiter_wait_us\":" + std::to_string(limiter_wait_us) +
+                            ",\"elapsed_us\":" + std::to_string(TraceElapsedMicroseconds(engine_start_tp)) +
+                            ",\"duration_us\":" + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(request_end_tp - request_start_tp).count()) +
+                            ",\"active_requests\":" + std::to_string(active_after_request) +
+                            ",\"outcome\":\"" + outcome + "\",\"cancel_reason\":\"" + cancel_reason + "\"}");
+                        std::ostringstream trace;
+                        trace << "HTTP_RANGE_TRACE {\"id\":" << trace_request_id
+                              << ",\"worker\":" << worker_idx
+                              << ",\"requested_start\":" << curr
+                              << ",\"requested_end\":" << end
+                              << ",\"status\":" << response_status
+                              << ",\"response_start\":" << response_range_start
+                              << ",\"response_end\":" << response_range_end
+                              << ",\"response_content_length\":" << response_content_length
+                              << ",\"client_bytes_received\":" << client_bytes_received
+                              << ",\"file_bytes_written\":" << file_bytes_written
+                              << ",\"committed_start\":" << curr
+                              << ",\"committed_end\":";
+                        if (file_bytes_written == 0) trace << "null";
+                        else trace << curr + file_bytes_written - 1;
+                        trace << ",\"start_epoch_ms\":" << request_start_epoch_ms
+                              << ",\"end_epoch_ms\":" << request_end_epoch_ms
+                              << ",\"start_ms\":" << start_ms
+                              << ",\"end_ms\":" << end_ms
+                              << ",\"body_complete\":" << (body_complete ? "true" : "false")
+                              << ",\"outcome\":\"" << outcome << "\""
+                              << ",\"cancel_reason\":\"" << cancel_reason << "\""
+                              << ",\"error_code\":\"" << (res.ok() ? "" : res.error->code) << "\"}";
+                        OPENIDM_LOG_INFO("HttpRangeTrace", trace.str());
+                    }
+
                     if (seg->current_offset.load() > seg->end_offset.load()) {
                         seg->completed.store(true);
                         seg->active_worker.store(false);
                         break;
+                    }
+
+                    // If this request was cancelled due to a range split, clear split_pending
+                    // because this request has now stopped reading and observed the split boundary.
+                    if (cancel_reason == "range_split") {
+                        seg->split_pending.store(false);
                     }
 
                     if (pause_requested.load() || cancel_requested.load() || fatal_abort.load()) {
@@ -767,7 +1045,7 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                                 OPENIDM_LOG_INFO("BriskEngine", "Worker retiring to respect adaptive rate limit concurrency (" +
                                     std::to_string(running_workers.load()) + " > " + std::to_string(current_max) +
                                     "); segment #" + std::to_string(seg->segment_id) + " returned to pool");
-                                running_workers.fetch_sub(1, std::memory_order_relaxed);
+                                stop_worker();
                                 return; // Fully exit worker thread
                             }
                         } else if (res.error->code == "ERR_NET_CONNECTION_RESET" ||
@@ -786,8 +1064,8 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                                     OPENIDM_LOG_INFO("BriskEngine", "Worker retiring to respect network backoff concurrency (" +
                                         std::to_string(running_workers.load()) + " > " + std::to_string(current_max) +
                                         "); segment #" + std::to_string(seg->segment_id) + " returned to pool");
-                                    running_workers.fetch_sub(1, std::memory_order_relaxed);
-                                return; // Fully exit worker thread
+                                    stop_worker();
+                                    return; // Fully exit worker thread
                                 }
                             }
                         }
@@ -813,20 +1091,31 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                         int exp_backoff = (100 * (1 << std::min(retries, 6))) + (std::rand() % 150);
                         int backoff_ms = std::max(retry_after_ms, exp_backoff);
                         backoff_ms = std::min(backoff_ms, 15000); // Bound backoff
+                        const auto backoff_started = std::chrono::steady_clock::now();
 
                         for (int slept = 0; slept < backoff_ms; slept += 50) {
                             if (fatal_abort.load() || pause_requested.load() || cancel_requested.load()) break;
                             std::this_thread::sleep_for(std::chrono::milliseconds(std::min(50, backoff_ms - slept)));
+                        }
+                        if (http_trace_enabled) {
+                            const auto actual_wait_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - backoff_started).count();
+                            EmitRuntimeTrace("{\"event\":\"retry_wait\",\"worker\":" + std::to_string(worker_idx) +
+                                ",\"segment\":" + std::to_string(seg->segment_id) + ",\"retry\":" + std::to_string(retries) +
+                                ",\"requested_wait_ms\":" + std::to_string(backoff_ms) +
+                                ",\"actual_wait_us\":" + std::to_string(actual_wait_us) +
+                                ",\"elapsed_us\":" + std::to_string(TraceElapsedMicroseconds(engine_start_tp)) + "}");
                         }
                     } else {
                         scheduler.ResetConsecutiveFailures();
                     }
                 }
             }
-            running_workers.fetch_sub(1, std::memory_order_relaxed);
+            stop_worker();
         };
 
-        auto start_tp = std::chrono::steady_clock::now();
+        auto start_tp = transfer_start_tp;
+        EmitHttpPhaseTrace("transfer_start", engine_start_tp);
         uint64_t initial_bytes = scheduler.TotalDownloadedBytes();
         auto last_sp_tp = start_tp;
         uint64_t last_sp_bytes = initial_bytes;
@@ -841,8 +1130,17 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         }
 
         uint32_t spawned = target_initial;
+        uint64_t coordinator_poll_wait_us = 0;
+        uint64_t coordinator_poll_count = 0;
         while (!scheduler.AllCompleted() && !fatal_abort.load() && !pause_requested.load() && !cancel_requested.load()) {
+            const auto poll_wait_started = http_trace_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            auto now = std::chrono::steady_clock::now();
+            if (http_trace_enabled) {
+                coordinator_poll_wait_us += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                    now - poll_wait_started).count());
+                ++coordinator_poll_count;
+            }
 
             uint32_t dynamic_max = std::min(max_conns, scheduler.GetMaxConnections());
             if (running_workers.load() < dynamic_max && spawned < 256 &&
@@ -850,7 +1148,6 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                 workers.emplace_back(worker_fn, spawned++);
             }
 
-            auto now = std::chrono::steady_clock::now();
             auto diff_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_sp_tp).count();
             if (diff_ms >= 100) {
                 uint64_t dl = scheduler.TotalDownloadedBytes();
@@ -883,12 +1180,24 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                 }
             }
         }
+        if (http_trace_enabled) {
+            EmitRuntimeTrace("{\"event\":\"coordinator_wait_summary\",\"poll_wait_us\":" +
+                std::to_string(coordinator_poll_wait_us) + ",\"poll_count\":" +
+                std::to_string(coordinator_poll_count) + "}");
+        }
 
         for (auto& t : workers) {
             if (t.joinable()) t.join();
         }
 
+        const auto file_sync_start = http_trace_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         part_file.SyncAndClose();
+        if (http_trace_enabled) {
+            const uint64_t file_sync_us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - file_sync_start).count());
+            EmitRuntimeTrace("{\"event\":\"file_sync\",\"duration_us\":" + std::to_string(file_sync_us) + "}");
+        }
+        EmitHttpPhaseTrace("transfer_end", engine_start_tp);
 
         task.downloaded_bytes = scheduler.TotalDownloadedBytes();
         task.segments = scheduler.GetSnapshots();
@@ -918,6 +1227,7 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
     // -------------------------------------------------------------------------
     // Phase 3: File Verification & Atomic Rename (FR-007, FR-026)
     // -------------------------------------------------------------------------
+    EmitHttpPhaseTrace("finalization_start", engine_start_tp);
     task.state = TaskState::kVerifying;
     task.status_detail = "Verifying file integrity...";
     if (!task.expected_sha256.empty()) {
@@ -957,6 +1267,7 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
     task.status_detail = "Completed";
     task.completed_at_ms = NowEpochMs();
     task.auth_headers.clear();
+    EmitHttpPhaseTrace("finalization_end", engine_start_tp);
     return Result<std::filesystem::path>::Ok(final_path);
 }
 

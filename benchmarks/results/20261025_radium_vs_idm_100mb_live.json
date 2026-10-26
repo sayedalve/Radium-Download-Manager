@@ -1,0 +1,67 @@
+{
+  "benchmark_date": "2026-10-25",
+  "test_environment": {
+    "os": "Windows 11 Pro 64-bit",
+    "cpu": "Intel Core i5-10400F @ 2.90GHz (6C/12T)",
+    "ram": "16 GB DDR4",
+    "network": "Real Broadband Internet (DataPacket Singapore CDN77-Turbo)"
+  },
+  "payload": {
+    "url": "https://sgp.download.datapacket.com/100mb.bin",
+    "expected_bytes": 100000000,
+    "size_mb_decimal": 100.0,
+    "size_mib_binary": 95.367431640625,
+    "server": "CDN77-Turbo",
+    "accept_ranges": "bytes",
+    "verified_sha256": "a993f8c574e0fea8c1cdcbcd9408d9e2e107ee6e4d120edcfa11decd53fa0cae"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "application": "Radium Download Manager",
+      "version": "0.3.2 (with In-Flight Segment Split Guard)",
+      "executable": "build/win-x64/Release/radium.exe",
+      "executable_sha256": "B6D435218FFDFC7772D028B89510CFF6E6EE03253779DEC8C7DC4519E218789A",
+      "build_timestamp": "2026-10-25T23:08:59.628+06:00",
+      "configured_connections": 8,
+      "elapsed_transfer_seconds": 63.17,
+      "throughput_mb_s": 1.58,
+      "throughput_mib_s": 1.51,
+      "avg_cpu_percent": 2.7,
+      "peak_cpu_percent": 61.6,
+      "peak_memory_mb": 20.9,
+      "downloaded_bytes": 100000000,
+      "final_file_size": 100000000,
+      "sha256": "a993f8c574e0fea8c1cdcbcd9408d9e2e107ee6e4d120edcfa11decd53fa0cae",
+      "sha256_match": true,
+      "errors_or_retries": 0,
+      "status": "COMPLETED"
+    },
+    {
+      "trial": 1,
+      "application": "Internet Download Manager",
+      "version": "6.43.15 (Build 2)",
+      "executable": "C:\\Program Files (x86)\\Internet Download Manager\\IDMan.exe",
+      "configured_connections": 8,
+      "elapsed_transfer_seconds": 28.86,
+      "throughput_mb_s": 3.46,
+      "throughput_mib_s": 3.30,
+      "avg_cpu_percent": 21.7,
+      "peak_cpu_percent": 133.0,
+      "peak_memory_mb": 52.2,
+      "downloaded_bytes": 100000000,
+      "final_file_size": 100000000,
+      "sha256": "a993f8c574e0fea8c1cdcbcd9408d9e2e107ee6e4d120edcfa11decd53fa0cae",
+      "sha256_match": true,
+      "errors_or_retries": 0,
+      "status": "COMPLETED"
+    }
+  ],
+  "comparison": {
+    "time_advantage_percent": -118.88,
+    "absolute_time_delta_seconds": 34.31,
+    "faster_application": "Internet Download Manager",
+    "formula": "((IDM time - Radium time) / IDM time) * 100",
+    "summary": "IDM completed the 100,000,000 byte transfer in 28.86s vs Radium in 63.17s. Radium exhibited ~60% lower memory usage (20.9 MB vs 52.2 MB) and ~88% lower average CPU utilization (2.7% vs 21.7%). Both files were 100% verified bit-identical."
+  }
+}

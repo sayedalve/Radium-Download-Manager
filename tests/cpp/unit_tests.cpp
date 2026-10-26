@@ -1243,6 +1243,34 @@ bool TestSegmentSchedulerBoundarySplitRaceGuard() {
     return true;
 }
 
+bool TestSegmentSchedulerDoesNotResplitInFlightRange() {
+    constexpr uint64_t total = 16ULL * 1024ULL * 1024ULL;
+    openidm::brisk::SegmentScheduler scheduler(total, 8, 262144);
+    scheduler.Initialize();
+
+    auto original = scheduler.AcquireNextOrStealSegment(false);
+    ASSERT_TRUE(original != nullptr, "Acquire initial active range");
+    auto first_stolen = scheduler.AcquireNextOrStealSegment(true);
+    ASSERT_TRUE(first_stolen != nullptr, "First worker steals a suffix");
+    const uint64_t first_boundary = original->end_offset.load();
+    ASSERT_TRUE(original->split_pending.load(), "Original in-flight response is marked split-pending");
+
+    auto second_stolen = scheduler.AcquireNextOrStealSegment(true);
+    ASSERT_TRUE(second_stolen != nullptr, "Another available range may still be split");
+    ASSERT_TRUE(original->end_offset.load() == first_boundary,
+        "Scheduler does not repeatedly shrink the same in-flight response");
+    ASSERT_TRUE(original->end_offset.load() + 1 == first_stolen->start_offset,
+        "Original and first suffix remain adjacent");
+    ASSERT_TRUE(first_stolen->end_offset.load() + 1 == second_stolen->start_offset ||
+        second_stolen->end_offset.load() + 1 == first_stolen->start_offset,
+        "Second split preserves contiguous range boundaries");
+
+    const auto segments = scheduler.GetSnapshots();
+    ASSERT_TRUE(openidm::brisk::SegmentScheduler::ValidateSegmentPartition(segments, total),
+        "Repeated split attempt preserves a complete non-overlapping partition");
+    return true;
+}
+
 bool TestIpcSecurityDaclAndPathTraversal() {
     std::string sock = openidm::ipc::IpcServer::DefaultSocketPath();
     ASSERT_TRUE(!sock.empty(), "Default socket path is non-empty");
@@ -5512,7 +5540,7 @@ bool TestNewDownloadDialogRowSpacingAcrossDpi() {
 
 int main() {
     int passed = 0;
-    const int total = 71;
+    const int total = 72;
 
     auto run = [&](int idx, const char* name, bool (*fn)()) {
         std::cout << "[" << idx << "/" << total << "] Running " << name << "..." << std::endl;
@@ -5593,6 +5621,7 @@ int main() {
     run(69, "TestMultiPeerTransferAndSeedingControls", TestMultiPeerTransferAndSeedingControls);
     run(70, "TestPauseAllManualPauseScheduleAndRecovery", TestPauseAllManualPauseScheduleAndRecovery);
     run(71, "TestNewDownloadDialogRowSpacingAcrossDpi", TestNewDownloadDialogRowSpacingAcrossDpi);
+    run(72, "TestSegmentSchedulerDoesNotResplitInFlightRange", TestSegmentSchedulerDoesNotResplitInFlightRange);
 
     std::cout << "\nC++20 Unit & Regression Test Summary: " << passed << " / " << total << " suites PASSED.\n";
     return (passed == total) ? 0 : 1;

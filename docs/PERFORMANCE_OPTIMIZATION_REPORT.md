@@ -5,6 +5,10 @@
 **Target:** Radium Download Manager (`radium.exe`)  
 **Scope:** HTTP Engine throughput optimization, memory allocation reduction, lock contention relief, and adaptive rate-limit fallback.
 
+> **Evidence status (2026-10-25):** The comparisons and gains below are historical results from 2026-10-21 and were not reproduced in the current investigation. A separate two-trial 2 GiB Radium/IDM comparison recorded Radium 2.7% slower by median duration. The current instrumented loopback investigation is diagnostic only; it found short-lived range requests canceled during dynamic splitting and does not establish a real-network speed advantage. See the HTTP concurrency follow-up in [TEST_MATRIX.md](TEST_MATRIX.md). Do not treat the historical headline as the current verified result.
+
+> **Active-range splitting update (2026-10-25):** Added a guard against repeatedly splitting the same active range while its old-end HTTP request remains in flight. In a controlled 16 MiB loopback test with a 200 ms response-body start delay and 5 ms chunk pacing, median engine transfer time across 3 baseline / 5 guarded runs decreased from 770 ms to 516 ms; request count fell from 17 to 6, and all final SHA-256 values matched. This measures a synthetic delayed-response case only. See [TEST_MATRIX.md](TEST_MATRIX.md) for client byte, phase timing, cancellation, and limitation details.
+
 ---
 
 ## 1. Executive Summary

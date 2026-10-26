@@ -1,9 +1,60 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "brisk_engine/segment_scheduler.hpp"
+#include "common/logger.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <mutex>
 
 namespace openidm::brisk {
+
+namespace {
+
+uint64_t SchedulerElapsedUs(std::chrono::steady_clock::time_point start,
+                            std::chrono::steady_clock::time_point end) {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+}
+
+class SchedulerTimedLock {
+public:
+    SchedulerTimedLock(std::mutex& mutex, const char* lock_name, const char* operation)
+        : m_lock(mutex, std::defer_lock), m_lock_name(lock_name), m_operation(operation),
+          m_enabled(std::getenv("RADIUM_HTTP_RANGE_TRACE") != nullptr) {
+        const auto wait_start = m_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        m_lock.lock();
+        if (m_enabled) {
+            m_acquired = std::chrono::steady_clock::now();
+            m_wait_us = SchedulerElapsedUs(wait_start, m_acquired);
+        }
+    }
+
+    ~SchedulerTimedLock() {
+        if (!m_enabled) return;
+        const auto released = std::chrono::steady_clock::now();
+        const uint64_t hold_us = SchedulerElapsedUs(m_acquired, released);
+        m_lock.unlock();
+        const auto steady_tick_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        OPENIDM_LOG_INFO("HttpRangeTrace", "HTTP_RUNTIME_TRACE {\"event\":\"lock_timing\",\"lock\":\"" +
+            std::string(m_lock_name) + "\",\"operation\":\"" + m_operation +
+            "\",\"wait_us\":" + std::to_string(m_wait_us) + ",\"hold_us\":" +
+            std::to_string(hold_us) + ",\"steady_tick_us\":" + std::to_string(steady_tick_us) + "}");
+    }
+
+    SchedulerTimedLock(const SchedulerTimedLock&) = delete;
+    SchedulerTimedLock& operator=(const SchedulerTimedLock&) = delete;
+
+private:
+    std::unique_lock<std::mutex> m_lock;
+    const char* m_lock_name;
+    const char* m_operation;
+    bool m_enabled{false};
+    uint64_t m_wait_us{0};
+    std::chrono::steady_clock::time_point m_acquired{};
+};
+
+} // namespace
 
 SegmentScheduler::SegmentScheduler(uint64_t total_bytes, uint32_t max_connections, uint64_t min_split_bytes)
     : m_total_bytes(total_bytes),
@@ -66,7 +117,7 @@ bool SegmentScheduler::ValidateSegmentPartition(const std::vector<Segment>& segm
 }
 
 void SegmentScheduler::Initialize(const std::vector<Segment>& existing_segments) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "Initialize");
     m_segments.clear();
     m_next_segment_id = 0;
 
@@ -92,7 +143,7 @@ void SegmentScheduler::Initialize(const std::vector<Segment>& existing_segments)
 }
 
 std::shared_ptr<LiveSegment> SegmentScheduler::AcquireNextOrStealSegment(bool allow_split) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "AcquireNextOrStealSegment");
 
     // 1. First check if there is any existing incomplete segment with no active worker (e.g. on start or resume)
     for (auto& seg : m_segments) {
@@ -124,13 +175,25 @@ std::shared_ptr<LiveSegment> SegmentScheduler::AcquireNextOrStealSegment(bool al
     }
 
     // 2. Brisk Work-Stealing / Dynamic Connection Reuse:
-    //    Find the active segment with the largest remaining byte range >= 2 * min_separation
+    //    Find the active segment with the largest remaining byte range >= 2 * min_separation.
+    //    Prefer segments that do NOT have a pending split in flight.
+    //    Only if no non-pending segment can be bisected, fall back to a pending segment
+    //    that holds a massive remaining backlog (>= 8 * min_separation).
     std::shared_ptr<LiveSegment> best_victim = nullptr;
     uint64_t max_remaining = 0;
-    uint64_t min_separation = (std::max<uint64_t>)(m_min_split_bytes, 262144ULL);
 
+    // Adaptive Range Splitting:
+    // When initial concurrency is ramping up (active_count < m_max_connections), allow fine-grained
+    // bisection (>= 256 KiB) so small or fast downloads scale out to all configured connections instantly.
+    // Once all connections have ramped up (active_count == m_max_connections), subsequent work-stealing
+    // requires a coarser split threshold (>= 1 MiB) to prevent late-stage micro-splits, connection churn,
+    // and cancellation slippage near completion.
+    uint64_t floor_bytes = (active_count + 1 < m_max_connections) ? 262144ULL : 1048576ULL;
+    uint64_t min_separation = (std::max<uint64_t>)(m_min_split_bytes, floor_bytes);
+
+    // Pass 1: candidate segments without split_pending
     for (auto& seg : m_segments) {
-        if (seg->completed.load()) continue;
+        if (seg->completed.load() || seg->split_pending.load()) continue;
         uint64_t curr = seg->current_offset.load();
         uint64_t end = seg->end_offset.load();
         if (end > curr) {
@@ -142,11 +205,28 @@ std::shared_ptr<LiveSegment> SegmentScheduler::AcquireNextOrStealSegment(bool al
         }
     }
 
+    // Pass 2: if no un-pending segment is available, fall back to segments with split_pending
+    // that have a very large remaining backlog (>= 8 * min_separation)
+    if (!best_victim) {
+        for (auto& seg : m_segments) {
+            if (seg->completed.load()) continue;
+            uint64_t curr = seg->current_offset.load();
+            uint64_t end = seg->end_offset.load();
+            if (end > curr) {
+                uint64_t rem = end - curr + 1;
+                if (rem >= 8 * min_separation && rem > max_remaining) {
+                    max_remaining = rem;
+                    best_victim = seg;
+                }
+            }
+        }
+    }
+
     if (!best_victim) {
         return nullptr;
     }
 
-    std::lock_guard<std::mutex> write_lock(best_victim->write_mu);
+    SchedulerTimedLock write_lock(best_victim->write_mu, "segment_write", "split");
     uint64_t curr = best_victim->current_offset.load();
     uint64_t old_end = best_victim->end_offset.load();
     if (old_end <= curr) {
@@ -176,15 +256,28 @@ std::shared_ptr<LiveSegment> SegmentScheduler::AcquireNextOrStealSegment(bool al
         return nullptr;
     }
 
+    // Mark split_pending on the victim so it does not suffer repeated split collisions
+    best_victim->split_pending.store(true);
+
     auto stolen = std::make_shared<LiveSegment>(
         m_next_segment_id++, split_start, split_start, old_end, false);
     stolen->active_worker.store(true);
     m_segments.push_back(stolen);
+    if (std::getenv("RADIUM_HTTP_RANGE_TRACE") != nullptr) {
+        const auto event_tick_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        OPENIDM_LOG_INFO("HttpRangeTrace", "HTTP_RUNTIME_TRACE {\"event\":\"range_split\",\"parent_segment\":" +
+            std::to_string(best_victim->segment_id) + ",\"child_segment\":" + std::to_string(stolen->segment_id) +
+            ",\"parent_start\":" + std::to_string(curr) + ",\"parent_old_end\":" + std::to_string(old_end) +
+            ",\"parent_new_end\":" + std::to_string(split_start - 1) + ",\"child_start\":" +
+            std::to_string(split_start) + ",\"child_end\":" + std::to_string(old_end) +
+            ",\"steady_tick_us\":" + std::to_string(event_tick_us) + "}");
+    }
     return stolen;
 }
 
 bool SegmentScheduler::RollbackUnstartedStolenSegment(uint32_t segment_id) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "RollbackUnstartedStolenSegment");
     auto it = std::find_if(m_segments.begin(), m_segments.end(), [&](const std::shared_ptr<LiveSegment>& s) {
         return s->segment_id == segment_id;
     });
@@ -203,8 +296,9 @@ bool SegmentScheduler::RollbackUnstartedStolenSegment(uint32_t segment_id) {
 
     for (auto& pred : m_segments) {
         if (pred->segment_id != segment_id && pred->end_offset.load() + 1 == start && !pred->completed.load()) {
-            std::lock_guard<std::mutex> pred_lock(pred->write_mu);
+            SchedulerTimedLock pred_lock(pred->write_mu, "segment_write", "rollback");
             pred->end_offset.store(end);
+            pred->split_pending.store(false);
             m_segments.erase(it);
             return true;
         }
@@ -214,7 +308,7 @@ bool SegmentScheduler::RollbackUnstartedStolenSegment(uint32_t segment_id) {
 }
 
 std::vector<Segment> SegmentScheduler::GetSnapshots() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "GetSnapshots");
     std::vector<Segment> out;
     out.reserve(m_segments.size());
     for (const auto& s : m_segments) {
@@ -227,7 +321,7 @@ std::vector<Segment> SegmentScheduler::GetSnapshots() const {
 }
 
 uint64_t SegmentScheduler::TotalDownloadedBytes() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "TotalDownloadedBytes");
     uint64_t sum = 0;
     for (const auto& s : m_segments) {
         uint64_t start = s->start_offset;
@@ -243,7 +337,7 @@ uint64_t SegmentScheduler::TotalDownloadedBytes() const {
 }
 
 bool SegmentScheduler::AllCompleted() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "AllCompleted");
     if (m_segments.empty()) return false;
     for (const auto& s : m_segments) {
         if (!s->completed.load(std::memory_order_relaxed)) return false;
@@ -252,7 +346,7 @@ bool SegmentScheduler::AllCompleted() const {
 }
 
 size_t SegmentScheduler::ActiveWorkerCount() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "ActiveWorkerCount");
     size_t count = 0;
     for (const auto& s : m_segments) {
         if (s->active_worker.load(std::memory_order_relaxed) && !s->completed.load(std::memory_order_relaxed)) {
@@ -263,7 +357,7 @@ size_t SegmentScheduler::ActiveWorkerCount() const {
 }
 
 bool SegmentScheduler::HasIncompleteUnassignedSegment() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "HasIncompleteUnassignedSegment");
     for (const auto& seg : m_segments) {
         if (!seg->completed.load() && !seg->active_worker.load()) {
             if (seg->current_offset.load() <= seg->end_offset.load()) {
@@ -275,37 +369,53 @@ bool SegmentScheduler::HasIncompleteUnassignedSegment() const {
 }
 
 bool SegmentScheduler::CanSplitAnySegment() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "CanSplitAnySegment");
     uint64_t min_separation = (std::max<uint64_t>)(m_min_split_bytes, 262144ULL);
+    // Pass 1: check for non-pending candidates
+    for (const auto& s : m_segments) {
+        if (s->completed.load(std::memory_order_relaxed) || s->split_pending.load(std::memory_order_relaxed)) continue;
+        uint64_t curr = s->current_offset.load(std::memory_order_relaxed);
+        uint64_t end = s->end_offset.load(std::memory_order_relaxed);
+        if (end > curr) {
+            uint64_t rem = end - curr + 1;
+            if (rem >= 2 * min_separation) {
+                return true;
+            }
+        }
+    }
+    // Pass 2: check for large pending candidates
     for (const auto& s : m_segments) {
         if (s->completed.load(std::memory_order_relaxed)) continue;
         uint64_t curr = s->current_offset.load(std::memory_order_relaxed);
         uint64_t end = s->end_offset.load(std::memory_order_relaxed);
-        if (end > curr && (end - curr + 1) >= 2 * min_separation) {
-            return true;
+        if (end > curr) {
+            uint64_t rem = end - curr + 1;
+            if (rem >= 8 * min_separation) {
+                return true;
+            }
         }
     }
     return false;
 }
 
 uint32_t SegmentScheduler::GetMaxConnections() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "GetMaxConnections");
     return m_max_connections;
 }
 
 void SegmentScheduler::SetMaxConnections(uint32_t conns) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "SetMaxConnections");
     m_max_connections = std::clamp(conns, 1u, 32u);
 }
 
 void SegmentScheduler::ReduceConnectionsByHalf() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "ReduceConnectionsByHalf");
     m_max_connections = std::max(1u, m_max_connections / 2u);
     m_consecutive_successes = 0;
 }
 
 void SegmentScheduler::ReduceConnectionsStepped() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "ReduceConnectionsStepped");
     // Conservative multi-tier backdown: 32 -> 16 -> 8 -> 4 -> 3 -> 2 -> 1
     // Rather than immediately halving from 3 to 1 or 4 to 2 to 1, gracefully descend
     if (m_max_connections > 8) {
@@ -319,7 +429,7 @@ void SegmentScheduler::ReduceConnectionsStepped() {
 }
 
 void SegmentScheduler::TryRampUpConnections(uint32_t ceiling_conns) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "TryRampUpConnections");
     if (m_max_connections < ceiling_conns) {
         ++m_max_connections;
     }
@@ -327,23 +437,23 @@ void SegmentScheduler::TryRampUpConnections(uint32_t ceiling_conns) {
 }
 
 void SegmentScheduler::ResetConsecutiveFailures() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "ResetConsecutiveFailures");
     m_consecutive_failures = 0;
 }
 
 void SegmentScheduler::RecordSuccess() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "RecordSuccess");
     m_consecutive_failures = 0;
     ++m_consecutive_successes;
 }
 
 uint32_t SegmentScheduler::IncrementConsecutiveFailures() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "IncrementConsecutiveFailures");
     return ++m_consecutive_failures;
 }
 
 uint32_t SegmentScheduler::GetConsecutiveFailures() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "GetConsecutiveFailures");
     return m_consecutive_failures;
 }
 

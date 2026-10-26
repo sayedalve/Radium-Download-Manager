@@ -1,0 +1,36 @@
+{
+  "url": "https://sg-lg.regxa.com/500MB.test",
+  "expected_bytes": 500000000,
+  "radium": {
+    "app": "Radium Download Manager",
+    "version": "0.3.2 (with In-Flight Segment Split Guard)",
+    "executable": "C:\\Users\\sayed\\Downloads\\openidm\\build\\win-x64\\Release\\radium.exe",
+    "elapsed_s": 128.48,
+    "size_bytes": 500000000,
+    "throughput_mb_s": 3.89,
+    "throughput_mib_s": 3.71,
+    "avg_cpu_percent": 6.9,
+    "peak_cpu_percent": 43.8,
+    "peak_mem_mb": 20.9,
+    "avg_tcp_conns": 3.0,
+    "peak_tcp_conns": 8,
+    "sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc",
+    "status": "COMPLETED"
+  },
+  "idm": {
+    "app": "Internet Download Manager",
+    "version": "6.43.15 (Build 2)",
+    "executable": "C:\\Program Files (x86)\\Internet Download Manager\\IDMan.exe",
+    "elapsed_s": 103.9,
+    "size_bytes": 500000000,
+    "throughput_mb_s": 4.81,
+    "throughput_mib_s": 4.59,
+    "avg_cpu_percent": 22.2,
+    "peak_cpu_percent": 181.2,
+    "peak_mem_mb": 122.7,
+    "avg_tcp_conns": 7.2,
+    "peak_tcp_conns": 8,
+    "sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc",
+    "status": "COMPLETED"
+  }
+}

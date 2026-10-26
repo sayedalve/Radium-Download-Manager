@@ -70,40 +70,34 @@ Every secondary worker (`Worker 1 .. N-1`) requests `Range: bytes=<start>-<end>`
 
 ## 4. Dynamic Connection Spawning & Work-Stealing Algorithm (`FR-003`)
 
-### 4.1 Parameters & Thresholds
-- `kDefaultMaxConnections = 8` (user configurable `1..32`).
-- `kMinSegmentSize = 1048576` (`1 MiB` — never split a range if the resulting half would be smaller than `1 MiB`).
-- `kSpawnIntervalMs = 500` (ramp-up check interval).
+### 4.1 Parameters & Thresholds (Current Source)
+- The controller defaults to 8 connections per task; the HTTP engine clamps the task value to `1..32`.
+- `SegmentScheduler` uses the configured `min_split_bytes` with an effective minimum separation of at least `256 KiB`.
+- The coordinator checks for additional workers every `50 ms`.
 
 ### 4.2 Dynamic Ramp-Up
-1. At `t = 0`, `Worker 0` starts with range `[0, total_bytes - 1]`.
-2. Every `500 ms` while `active_workers < max_connections`:
-   - If `range_supported == true` and `Worker 0` (or the existing workers) has received bytes within the last `500 ms` and the largest remaining segment has `>= 2 * kMinSegmentSize` (`2 MiB`) remaining:
-   - Spawn `1` new worker by splitting the largest active segment.
-   - Progressive spawning prevents opening 8 simultaneous TLS handshakes for small (`< 2 MiB`) files or dead URLs.
+1. The engine starts `min(2, max_connections)` worker threads immediately.
+2. Every `50 ms`, the coordinator may start one additional worker if the running thread count is below the configured/adaptive limit and the scheduler has unassigned work or a splittable active segment.
+3. Consequently, a very fast transfer can finish before the full configured concurrency is reached. The worker-thread count is not a measurement of live HTTP requests.
 
-### 4.3 Work-Stealing Byte-Range Split (`OnWorkerCompleted`)
-When `Worker i` reaches `current_offset > end_offset`:
-1. Acquire `m_scheduler_mutex` on the task's `SegmentScheduler`.
-2. Scan all active segments `j` to find the segment with the maximum remaining bytes:
-   $$\\text{remaining}_j = \\text{end\\_offset}_j - \\text{current\\_offset}_j + 1$$
-3. If $\\max_j (\\text{remaining}_j) < 2 \\times \\text{kMinSegmentSize}$ (`2 MiB`), `Worker i` transitions to `Completed` and exits cleanly.
-4. Otherwise, compute the split point aligned to a `4 KiB` (`4096`-byte) disk sector boundary:
-   $$\\text{split\\_offset} = \\text{ align\\_4k }\\left(\\text{current\\_offset}_j + \\frac{\\text{remaining}_j}{2}\\right)$$
-5. Update `Segment j`'s `end_offset = split_offset - 1` (atomic `std::atomic<uint64_t>` read by `Worker j` on every buffer write so `Worker j` stops automatically when `current_offset > end_offset`).
-6. Assign `Worker i` the new segment `[split_offset, old_end_offset]` and persist both segment updates in a single SQLite batch transaction before issuing `WinHttpSendRequest`.
+### 4.3 Dynamic Work-Stealing Byte-Range Split
+When a worker asks the scheduler for work and there is no unassigned segment:
+1. `SegmentScheduler::AcquireNextOrStealSegment` scans active segments `j` for the largest remaining byte range:
+   $$\text{remaining}_j = \text{end\_offset}_j - \text{current\_offset}_j + 1$$
+2. If the selected remainder is large enough, it splits around the midpoint, aligned to a `4 KiB` boundary where possible, and shrinks the existing segment's end offset.
+3. A worker may already have issued a `Range` request using the segment's previous end offset. The end change does not interrupt synchronous `WinHttpReadData`; cancellation is requested by the callback when the next body chunk arrives (or after the read timeout). `current_offset` advances only after a successful partial-file write, so it does not include bytes already returned in a read buffer. Under `write_mu`, the callback caps writes at the new end and discards any bytes beyond it; the newly assigned worker requests the suffix. Those discarded read-buffer bytes are fetched again if the new request needs them. This preserves the committed byte map, but can waste client-received data and request setup.
+4. `LiveSegment::split_pending` prevents the scheduler from shrinking that same segment again while a request still has a stale end bound. It clears when a request using the current end reaches validated headers, or when an unstarted stolen range is rolled back. This bounds each in-flight response to one pending boundary change while retaining dynamic segmentation.
+5. The coordinator snapshots progress for callbacks on its roughly `100 ms` progress cadence; segment changes are not transactionally persisted before each request is issued. `current_offset` reflects successful writes, not a durable flush; the engine flushes the shared part file after workers join, and recovery applies its existing safety rollback.
+
+**Measured diagnostic (2026-10-25):** With an artificial 200 ms delay before the first response-body chunk and 5 ms pacing after each 256 KiB chunk, 16 MiB / 8-connection local runs reduced median engine transfer time from 770 ms (3 baseline runs) to 516 ms (5 guarded runs). Range requests fell from 17 to 6 and split cancellations from 11 to 5. Every run received and committed exactly 16 MiB and passed SHA-256. This controlled result supports the in-flight resplit guard for repeated request churn; it does not establish a public-network or IDM speed advantage. The trace is enabled only when `RADIUM_HTTP_RANGE_TRACE` is set. Client bytes count body data delivered to the engine callback, while server socket-write counters remain separate and are not packet-level traffic measurements.
 
 ---
 
 ## 5. Disk Writes, Pre-Allocation, and File Integrity (`FR-026`)
 
-1. **Shared File Handle with Overlapped Positional Writes:**
-   - Once `total_bytes` is known, `WinHttpDownloadEngine` opens `<dest_dir>\\<filename>.openidm.part` using `CreateFileW` with `GENERIC_WRITE | GENERIC_READ`, `FILE_SHARE_READ`, and `FILE_FLAG_OVERLAPPED` (or positional `WriteFile` with explicit `OVERLAPPED.Offset` / `OffsetHigh`).
-   - Pre-allocates the file size via `SetFileInformationByHandle(..., FileEndOfFileInfo, ...)` to immediately detect `ERROR_DISK_FULL` (`FR-001`) and prevent NTFS fragmentation.
-2. **Per-Worker Double Buffering:**
-   - Each worker maintains two `64 KiB` read buffers (`16 connections * 128 KiB = 2 MiB` total RAM per task). While `WinHttpReadData` fills Buffer A asynchronously, Buffer B is written at exact byte offset `current_offset` to `.openidm.part`.
-3. **Final Verification & Atomic Rename:**
-   - When all segments complete, verify that the sum of all completed segment lengths equals `total_bytes` and flush buffers via `FlushFileBuffers`.
+1. **Shared Partial File:** The Windows implementation opens `<dest_dir>\\<filename>.openidm.part` with `CreateFileW` using `GENERIC_READ | GENERIC_WRITE`, `FILE_SHARE_READ | FILE_SHARE_WRITE`, `OPEN_ALWAYS`, and `FILE_ATTRIBUTE_NORMAL`. It sets the logical length with `SetFilePointerEx` and `SetEndOfFile`.
+2. **Synchronous Chunk Handling:** Each `PerformGet` reads with a reusable `256 KiB` buffer via synchronous `WinHttpReadData`; the worker callback writes the received chunk through `PlatformPartFile::PWrite` at the segment offset. Disk-write and per-segment lock wait times are not currently measured.
+3. **Final Flush & Commit:** After workers join, the engine calls `FlushFileBuffers` before finalizing the partial file. Any configured checksum is verified before the final path is committed.
    - If the user provided an expected checksum (`SHA-256` / `MD5`), stream `.openidm.part` through Windows CNG (`BCryptHashData`).
    - Atomically rename `<filename>.openidm.part` to `<filename>` via `SetFileInformationByHandle` (`FileRenameInfoEx`), applying the configured conflict policy (`Auto-Rename`, `Overwrite`, or `Prompt`).
 
@@ -170,4 +164,10 @@ public:
 };
 
 } // namespace openidm::engine
+
+## Opt-in runtime performance telemetry
+
+Set `RADIUM_HTTP_RANGE_TRACE=1` in the process environment to emit structured HTTP runtime events. Request start/end events use monotonic elapsed microseconds and include worker/segment IDs, requested byte range, response status, callback bytes received, bytes successfully written, measured request duration, cancellation outcome, and the number of active HTTP requests after each transition. Worker start/stop events report the observed active worker count and cumulative time spent waiting for work. Successful scheduler splits emit exact parent and child range boundaries. Retry events report requested backoff and measured elapsed wait. These events contain no URL or request headers.
+
+`HTTP_PHASE_TRACE` records initialization start, transfer start/end, and finalization start/end from the same monotonic engine clock. Initialization includes probing and setup; transfer ends after workers join and the part file is flushed; finalization includes optional digest verification and atomic commit. Request completion events separately accumulate time spent in the task/global bandwidth limiters; worker stop and retry events report idle and backoff waits. The local benchmark independently compares in-process request starts and byte ranges against loopback server GET logs and checks written-byte totals, final size, and SHA-256. Runtime telemetry is diagnostic-only and does not feed scheduler decisions. Server socket-write counts remain separate because they measure bytes offered by the fixture, not bytes received by Radium.
 ```

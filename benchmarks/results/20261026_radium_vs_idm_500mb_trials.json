@@ -1,0 +1,141 @@
+{
+  "benchmark_date": "2026-10-26",
+  "payload": {
+    "url": "https://sg-lg.regxa.com/500MB.test",
+    "expected_bytes": 500000000,
+    "size_mb": 500.0,
+    "size_mib": 476.837158203125,
+    "server": "Apache/2.4.41 (Ubuntu) / Singapore Looking Glass",
+    "verified_sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc"
+  },
+  "environment": {
+    "os": "Windows 11 Pro 64-bit",
+    "cpu": "Intel Core i5-10400F @ 2.90GHz (6C/12T)",
+    "ram": "16 GB DDR4",
+    "configured_connections": 8,
+    "instrumentation": "RADIUM_HTTP_RANGE_TRACE=1",
+    "order": [
+      "IDM (Trial 1)",
+      "Radium (Trial 1)",
+      "Radium (Trial 2)",
+      "IDM (Trial 2)"
+    ]
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "application": "Internet Download Manager",
+      "version": "6.43.15 (Build 2)",
+      "execution_order": 1,
+      "elapsed_transfer_seconds": 254.50,
+      "throughput_mb_s": 1.96,
+      "throughput_mib_s": 1.87,
+      "avg_cpu_percent": 14.8,
+      "peak_cpu_percent": 96.2,
+      "peak_memory_mb": 84.6,
+      "downloaded_bytes": 500000000,
+      "final_file_size": 500000000,
+      "sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc",
+      "sha256_match": true,
+      "status": "COMPLETED"
+    },
+    {
+      "trial": 1,
+      "application": "Radium Download Manager",
+      "version": "0.3.2 (with In-Flight Segment Split Guard)",
+      "execution_order": 2,
+      "elapsed_transfer_seconds": 360.86,
+      "throughput_mb_s": 1.39,
+      "throughput_mib_s": 1.32,
+      "avg_cpu_percent": 3.8,
+      "peak_cpu_percent": 48.2,
+      "peak_memory_mb": 22.4,
+      "downloaded_bytes": 500000000,
+      "final_file_size": 500000000,
+      "sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc",
+      "sha256_match": true,
+      "telemetry": {
+        "range_requests_issued": 19,
+        "range_splits": 14,
+        "cancellations": 14,
+        "client_bytes_received": 501310720,
+        "file_bytes_written": 500000000,
+        "discarded_bytes": 1310720,
+        "discarded_overhead_percent": 0.262,
+        "probe_duration_ms": 689
+      },
+      "status": "COMPLETED"
+    },
+    {
+      "trial": 2,
+      "application": "Radium Download Manager",
+      "version": "0.3.2 (with In-Flight Segment Split Guard)",
+      "execution_order": 3,
+      "elapsed_transfer_seconds": 944.88,
+      "throughput_mb_s": 0.53,
+      "throughput_mib_s": 0.50,
+      "avg_cpu_percent": 2.1,
+      "peak_cpu_percent": 28.6,
+      "peak_memory_mb": 24.1,
+      "downloaded_bytes": 500000000,
+      "final_file_size": 500000000,
+      "sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc",
+      "sha256_match": true,
+      "telemetry": {
+        "range_requests_issued": 9,
+        "range_splits": 8,
+        "cancellations": 8,
+        "client_bytes_received": 500806912,
+        "file_bytes_written": 500000000,
+        "discarded_bytes": 806912,
+        "discarded_overhead_percent": 0.161,
+        "probe_duration_ms": 468
+      },
+      "status": "COMPLETED"
+    },
+    {
+      "trial": 2,
+      "application": "Internet Download Manager",
+      "version": "6.43.15 (Build 2)",
+      "execution_order": 4,
+      "elapsed_transfer_seconds": 88.65,
+      "throughput_mb_s": 5.64,
+      "throughput_mib_s": 5.38,
+      "avg_cpu_percent": 21.5,
+      "peak_cpu_percent": 125.0,
+      "peak_memory_mb": 121.2,
+      "downloaded_bytes": 500000000,
+      "final_file_size": 500000000,
+      "sha256": "b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc",
+      "sha256_match": true,
+      "status": "COMPLETED"
+    }
+  ],
+  "averages": {
+    "radium": {
+      "average_transfer_seconds": 652.87,
+      "average_throughput_mb_s": 0.96,
+      "average_throughput_mib_s": 0.91,
+      "average_cpu_percent": 2.95,
+      "average_peak_cpu_percent": 38.4,
+      "average_peak_memory_mb": 23.25,
+      "integrity_pass_rate": 1.0
+    },
+    "idm": {
+      "average_transfer_seconds": 171.58,
+      "average_throughput_mb_s": 3.80,
+      "average_throughput_mib_s": 3.63,
+      "average_cpu_percent": 18.15,
+      "average_peak_cpu_percent": 110.6,
+      "average_peak_memory_mb": 102.9,
+      "integrity_pass_rate": 1.0
+    },
+    "comparison": {
+      "faster_application": "Internet Download Manager",
+      "average_time_difference_seconds": -481.29,
+      "time_advantage_percent": -280.50,
+      "formula": "((IDM average time - Radium average time) / IDM average time) * 100",
+      "summary": "IDM had a faster average download time (171.58s vs 652.87s, -280.50% time advantage for Radium). Radium demonstrated 77.4% lower peak memory usage (23.25 MB vs 102.9 MB) and 83.7% lower average CPU usage (2.95% vs 18.15%). All four downloads produced bit-identical SHA-256 hashes."
+    }
+  }
+}

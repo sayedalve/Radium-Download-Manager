@@ -68,7 +68,7 @@
 | **NFR-001** | Core Binary Size (`<= 3.0 MB` uncompressed) | `CMakeLists.txt` | `Verified by Execution` | `2,047.0 KB` (`flux.exe` 2,040.3 KB + `flux-nmh.exe` 55.8 KB <= 3,072 KB budget) |
 | **NFR-002** | Startup Latency (`< 150 ms` cold) | `src/app/main.cpp`, `src/common/path_sanitizer.cpp` | `Verified by Execution` | `71.05 ms` median (`flux --gui-snapshot`) |
 | **NFR-003** | Idle Daemon & HTTP Memory Budget | `src/brisk_engine/http_download_engine.cpp` | `Verified by Execution` | Idle RSS: `10.34 MB` (<= 25 MB); Peak HTTP 8-Conn: `15.7 MB` (<= 65 MB); Peak Stream Worker: `11.04 MB` (<= 65 MB) |
-| **NFR-004** | Multi-Connection Segmented Throughput | `src/brisk_engine/http_download_engine.cpp` | `Verified by Execution` | `223.0 Mbps` across 8 connections (Floor: >= 50 Mbps) |
+| **NFR-004** | Multi-Connection Segmented Throughput | `src/brisk_engine/http_download_engine.cpp` | `Verified by controlled local execution; live-network saturation unverified` | Added an in-flight resplit guard after 3 baseline / 5 guarded identical 16 MiB loopback trials with artificial response delay: median transfer `770 ms -> 516 ms`, range requests `17 -> 6`, SHA-256 exact in every run. This synthetic result does not establish line-rate or IDM superiority. Additional trace details and limitations are in `TEST_MATRIX.md`. |
 | **NFR-005** | Crash-Safe SQLite WAL/TRUNCATE State Persistence | `src/storage/sqlite_store.cpp` | `Verified by Execution` | 64 KiB safety rollback verified (`TestSqliteStoreAndCrashRecovery`) |
 | **NFR-006** | Path & Filename Traversal Sanitization | `src/common/path_sanitizer.cpp` | `Verified by Execution` | Blocks `../`, NTFS ADS, DOS names, and `U+202E` BiDi (`TestPathSanitizerAndContentDisposition`) |
 | **NFR-007** | Zero Unauthenticated Network Listeners | `src/ipc/ipc_server.cpp` | `Verified by Execution` | Uses Windows Named Pipe with `PIPE_REJECT_REMOTE_CLIENTS`; zero TCP listening ports |
@@ -81,6 +81,7 @@
 | **NFR-014** | Clean Engine & Adapter Boundaries | `src/brisk_engine/`, `src/engine_stream/`, `src/core/` | `Verified by Execution` | Verified across `56 / 56` C++ unit suites |
 | **NFR-015** | Strict DRM Non-Circumvention (`ERR_STREAM_DRM_PROTECTED`) | `src/engine_stream/nm3u8dl_re_adapter.cpp`, `src/worker_stream/nm3u8dl_re_worker.cpp` | `Verified by Execution` | Widevine/CENC immediately rejected (`TestStreamMetaJsonAndDrmRejection`) |
 | **NFR-016** | Cross-Architecture Clean Compilation Readiness | `CMakeLists.txt` | `Verified by Execution` | Compiles cleanly with MSVC `/W4` `/WX` |
+| **NFR-017** | Opt-in HTTP runtime performance telemetry | `src/brisk_engine/http_download_engine.cpp`, `src/brisk_engine/segment_scheduler.cpp`, `benchmarks/scripts/run_local_benchmark.py`, `scripts/benchmark_server.py` | `Verified by Execution (local fixture; internet behavior unverified)` | Request/phase/worker, scheduler and segment-write lock, file-write, and wait telemetry reconciled with fixture logs and output SHA-256 across 24 repeated 128 MiB local trials at 4/8 connections; see `benchmarks/results/local_lock_disk_audit_20261026/report.md` |
 
 ### Follow-up verification (2026-10-23)
 

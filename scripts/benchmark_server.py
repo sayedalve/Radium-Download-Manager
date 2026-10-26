@@ -36,10 +36,27 @@ class ServerMetrics:
         self._lock = threading.Lock()
         self.active_connections = 0
         self.peak_connections = 0
+        self.active_handlers = 0
+        self.peak_handlers = 0
         self.total_requests = 0
         self.total_bytes_served = 0
         self.request_failures = 0
         self.history = []
+
+    def on_request_start(self):
+        with self._lock:
+            self.active_handlers += 1
+            self.peak_handlers = max(self.peak_handlers, self.active_handlers)
+            return self.active_handlers, self.peak_handlers
+
+    def on_request_end(self, record: dict):
+        with self._lock:
+            self.active_handlers = max(0, self.active_handlers - 1)
+            self.total_requests += 1
+            self.total_bytes_served += int(record.get("server_bytes_offered", 0))
+            if not record.get("body_complete", False):
+                self.request_failures += 1
+            self.history.append(record)
 
     def on_connection_start(self):
         with self._lock:
@@ -51,24 +68,13 @@ class ServerMetrics:
     def on_connection_end(self, bytes_sent: int, success: bool, duration_s: float, path: str, status_code: int):
         with self._lock:
             self.active_connections = max(0, self.active_connections - 1)
-            self.total_requests += 1
-            self.total_bytes_served += bytes_sent
-            if not success:
-                self.request_failures += 1
-            if len(self.history) < 500:
-                self.history.append({
-                    "timestamp": time.time(),
-                    "path": path,
-                    "status_code": status_code,
-                    "bytes_sent": bytes_sent,
-                    "duration_s": round(duration_s, 4),
-                    "success": success,
-                })
 
     def reset(self):
         with self._lock:
             self.active_connections = 0
             self.peak_connections = 0
+            self.active_handlers = 0
+            self.peak_handlers = 0
             self.total_requests = 0
             self.total_bytes_served = 0
             self.request_failures = 0
@@ -79,6 +85,8 @@ class ServerMetrics:
             return {
                 "active_connections": self.active_connections,
                 "peak_connections": self.peak_connections,
+                "active_handlers": self.active_handlers,
+                "peak_handlers": self.peak_handlers,
                 "total_requests": self.total_requests,
                 "total_bytes_served": self.total_bytes_served,
                 "request_failures": self.request_failures,
@@ -167,10 +175,58 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
         return self.server
 
     def do_HEAD(self):
-        self._handle_request(send_body=False)
+        self._run_instrumented_request(send_body=False)
 
     def do_GET(self):
-        self._handle_request(send_body=True)
+        self._run_instrumented_request(send_body=True)
+
+    def _run_instrumented_request(self, send_body: bool):
+        start_tick = time.perf_counter_ns()
+        start_epoch_ns = time.time_ns()
+        self._bench_status = 0
+        self._bench_bytes_offered = 0
+        self._bench_response_range = None
+        self._bench_body_complete = False
+        self._bench_send_error = ""
+        self._bench_headers_tick_ns = None
+        self._bench_body_tick_ns = None
+        active_handlers, peak_handlers = self.server_instance.metrics.on_request_start()
+        active_payload = self.server_instance.metrics.snapshot()["active_connections"]
+        try:
+            self._handle_request(send_body=send_body)
+        except (ConnectionResetError, BrokenPipeError, socket.error) as exc:
+            self._bench_send_error = type(exc).__name__
+        finally:
+            end_tick = time.perf_counter_ns()
+            end_epoch_ns = time.time_ns()
+            active_payload_end = self.server_instance.metrics.snapshot()["active_connections"]
+            self.server_instance.metrics.on_request_end({
+                "method": self.command,
+                "path": self.path,
+                "requested_range": self.headers.get("Range", ""),
+                "response_range": self._bench_response_range,
+                "status": self._bench_status,
+                "server_bytes_offered": self._bench_bytes_offered,
+                "body_complete": self._bench_body_complete,
+                "send_error": self._bench_send_error,
+                "start_epoch_ns": start_epoch_ns,
+                "end_epoch_ns": end_epoch_ns,
+                "start_tick_ns": start_tick,
+                "end_tick_ns": end_tick,
+                "duration_us": (end_tick - start_tick) // 1000,
+                "headers_tick_ns": self._bench_headers_tick_ns,
+                "body_tick_ns": self._bench_body_tick_ns,
+                "response_headers_latency_us": ((self._bench_headers_tick_ns - start_tick) // 1000
+                                                if self._bench_headers_tick_ns is not None else None),
+                "post_header_body_wait_us": ((self._bench_body_tick_ns - self._bench_headers_tick_ns) // 1000
+                                              if self._bench_body_tick_ns is not None and self._bench_headers_tick_ns is not None else None),
+                "body_transfer_handler_us": ((end_tick - self._bench_body_tick_ns) // 1000
+                                             if self._bench_body_tick_ns is not None else None),
+                "active_handlers_at_start": active_handlers,
+                "peak_handlers_at_start": peak_handlers,
+                "active_payload_handlers_at_start": active_payload,
+                "active_payload_handlers_at_end": active_payload_end,
+            })
 
     def do_POST(self):
         path = self.path.split("?")[0]
@@ -186,12 +242,21 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _send_json_response(self, code: int, data: dict):
         body = json.dumps(data, indent=2).encode("utf-8")
+        self._bench_status = code
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Connection", "close")
         self.end_headers()
+        self._bench_headers_tick_ns = time.perf_counter_ns()
         self.wfile.write(body)
+        self._bench_bytes_offered += len(body)
+        self._bench_body_complete = True
+
+    def send_error(self, code, message=None, explain=None):
+        self._bench_status = code
+        self._bench_send_error = message or "HTTP error"
+        return super().send_error(code, message, explain)
 
     def _handle_request(self, send_body: bool):
         path = self.path.split("?")[0]
@@ -243,6 +308,19 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
         file_size = target_file.stat().st_size
         range_header = self.headers.get("Range", "")
 
+        latency_ms = int(getattr(self.server_instance, "response_latency_ms", 0))
+        if latency_ms > 0:
+            time.sleep(latency_ms / 1000.0)
+
+        limit = int(getattr(self.server_instance, "max_payload_handlers", 0))
+        if limit > 0 and self.server_instance.metrics.snapshot()["active_connections"] >= limit:
+            self._bench_status = 429
+            self.send_response(429)
+            self.send_header("Retry-After", "0")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         # Non-range endpoint behavior: Always return 200 OK with full file
         if not is_range_capable or not range_header:
             self._serve_full_content(target_file, file_size, is_range_capable, is_throttled, send_body)
@@ -260,6 +338,7 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
         success = False
         try:
             self.send_response(200)
+            self._bench_status = 200
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", str(file_size))
             if is_range_capable:
@@ -269,9 +348,19 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("ETag", f'"{target_file.name}-{file_size}"')
             self.send_header("Connection", "keep-alive")
             self.end_headers()
+            self._bench_headers_tick_ns = time.perf_counter_ns()
 
             if send_body:
+                self._bench_body_tick_ns = time.perf_counter_ns()
+                first_body_delay_ms = int(getattr(self.server_instance, "initial_body_delay_ms", 0))
+                if first_body_delay_ms > 0:
+                    time.sleep(first_body_delay_ms / 1000.0)
                 bytes_sent = self._stream_file_bytes(target_file, 0, file_size - 1, is_throttled)
+                self._bench_body_complete = bytes_sent == file_size
+            else:
+                self._bench_body_complete = True
+                self._bench_body_tick_ns = None
+            self._bench_response_range = [0, file_size - 1]
             success = True
         except (ConnectionResetError, BrokenPipeError, socket.error):
             logger.debug("Client reset connection during full stream of %s", target_file.name)
@@ -314,6 +403,7 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
         if start > end or start >= file_size:
             # 416 Range Not Satisfiable
             self.send_response(416)
+            self._bench_status = 416
             self.send_header("Content-Range", f"bytes */{file_size}")
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -321,6 +411,7 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
 
         end = min(end, file_size - 1)
         content_length = end - start + 1
+        self._bench_response_range = [start, end]
 
         active, peak = self.server_instance.metrics.on_connection_start()
         logger.debug("Active connection +1 (now %d, peak %d) range %d-%d for %s",
@@ -330,6 +421,7 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
         success = False
         try:
             self.send_response(206)
+            self._bench_status = 206
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", str(content_length))
             self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
@@ -337,9 +429,15 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("ETag", f'"{target_file.name}-{file_size}"')
             self.send_header("Connection", "keep-alive")
             self.end_headers()
+            self._bench_headers_tick_ns = time.perf_counter_ns()
 
             if send_body:
+                self._bench_body_tick_ns = time.perf_counter_ns()
+                first_body_delay_ms = int(getattr(self.server_instance, "initial_body_delay_ms", 0))
+                if first_body_delay_ms > 0:
+                    time.sleep(first_body_delay_ms / 1000.0)
                 bytes_sent = self._stream_file_bytes(target_file, start, end, is_throttled)
+            self._bench_body_complete = (not send_body) or bytes_sent == content_length
             success = True
         except (ConnectionResetError, BrokenPipeError, socket.error):
             logger.debug("Client reset connection during range [%d-%d] of %s", start, end, target_file.name)
@@ -348,7 +446,7 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
             self.server_instance.metrics.on_connection_end(bytes_sent, success, dur, self.path, 206)
 
     def _stream_file_bytes(self, target_file: Path, start: int, end: int, is_throttled: bool) -> int:
-        chunk_size = 65536  # 64 KiB chunks
+        chunk_size = int(getattr(self.server_instance, "response_chunk_bytes", 262144))
         bytes_to_send = end - start + 1
         total_sent = 0
         throttle_rate = self.server_instance.throttle_bps if is_throttled else 0
@@ -363,6 +461,7 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
                     break
                 self.wfile.write(data)
                 total_sent += len(data)
+                self._bench_bytes_offered += len(data)
 
                 # Bandwidth throttling
                 if throttle_rate > 0:
@@ -371,6 +470,10 @@ class BenchmarkRequestHandler(http.server.BaseHTTPRequestHandler):
                     sleep_time = expected_time - actual_time
                     if sleep_time > 0.001:
                         time.sleep(sleep_time)
+
+                chunk_delay_ms = int(getattr(self.server_instance, "response_chunk_delay_ms", 0))
+                if chunk_delay_ms > 0:
+                    time.sleep(chunk_delay_ms / 1000.0)
 
         return total_sent
 

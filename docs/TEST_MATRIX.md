@@ -229,6 +229,100 @@ The Add Torrent and Remove Download dialogs were statically audited and the Rele
 
 Live BitTorrent progress now reports received blocks while their pieces are still being assembled; only verified-piece bytes are retained as resumable progress. The received-block UI progress change has not yet been covered by an automated regression or verified in the running Windows UI.
 
+### HTTP concurrency instrumentation follow-up (2026-10-25)
+
+`benchmarks/scripts/run_local_benchmark.py` prefers a build-tree executable, accepts `--exe` to pin the binary, and supports fixed response latency plus per-256 KiB pacing. The fixture records each request's start/end timestamps, requested and returned ranges, status, handler count, payload-handler count, body completion, and bytes offered to the socket. Server handler counts are separate from client HTTP request intervals and engine worker-thread lifecycle. Engine worker start/stop and scheduler idle-wait events are available; scheduler lock-wait and disk-write duration are not. Server socket-write bytes are an upper bound on payload offered by the fixture and do not prove peer receipt.
+
+When the runner sets `RADIUM_HTTP_RANGE_TRACE=1`, the engine also writes per-request traces with requested and response ranges, response status, client body bytes delivered to the engine callback, successful file-write bytes and offsets, start/completion times, cancellation reason, and result. The runner derives unique committed bytes, duplicate received bytes from overlapping received intervals, request overlap, live client request peak, and phase timings. `client_bytes_received` is WinHTTP body data returned to the engine callback; it is distinct from fixture socket writes and configured/worker counts. The engine phase boundaries are: process launch to `ExecuteDownload`, download initialization through worker start, transfer through worker join and file flush, verification/commit, and process exit tail. The runner separately times its post-process SHA-256 check.
+
+Verified by execution using `build_msvc/Release/radium.exe`; each completed output matched SHA-256:
+
+| Fixture | Configured connections | Delay per 256 KiB | Peak server payload handlers | Payload GETs (completed / incomplete) | Server socket bytes written | Whole-command duration |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 32 MiB | 8 | 0 ms | 3 | 5 / 3 of 8 | 35,782,656 | 0.523 s |
+| 32 MiB | 4 | 5 ms | 6 | 3 / 3 of 6 | 34,603,008 | 0.652 s |
+| 32 MiB | 8 | 5 ms | 6 | 5 / 3 of 8 | 34,930,688 | 0.781 s |
+| 64 MiB | 8 | 0 ms | 3 | 3 / 4 of 7 | 69,484,544 | 0.450 s |
+
+Every request in these traces received HTTP `206`; the incomplete responses ended with server-side connection reset/abort errors after the client stopped reading. The final file still passed SHA-256. The traces show that configured concurrency is not immediately reached on the fast loopback path and that dynamic segment splitting can truncate already-issued ranges, causing additional range GETs and some server-side socket writes beyond the final payload size. A 5 ms per-chunk delay produced more concurrent handlers, confirming the fixture can exercise concurrency above two; it is an artificial pacing condition, not an Internet RTT simulation. The earlier two-handler result cannot be reconstructed exactly because its raw per-request log was not saved. The current results are not an IDM comparison and do not establish real-world speed.
+
+The 16 MiB, 8-connection, 5 ms/chunk, simulated-429-cap-2 run observed one HTTP `429`, one exact-range retry, 3 peak server payload handlers, and completed with matching SHA-256 (1.874 s whole-command time). The instrumentation recorded the retry separately from the three responses that ended when the client aborted a now-shortened range.
+
+Additional one-trial size/concurrency matrix, all with 5 ms delay after each 256 KiB response chunk; every output completed and matched SHA-256:
+
+| Payload | Configured conns | Peak fixture handlers | Data GETs (complete / incomplete) | Request window | Whole-command time | Server socket bytes written |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 MiB | 1 | 1 | 1 (1 / 0) | 0.093 s | 0.458 s | 4,194,304 |
+| 4 MiB | 4 | 2 | 2 (1 / 1) | 0.052 s | 0.389 s | 4,456,448 |
+| 4 MiB | 8 | 2 | 2 (1 / 1) | 0.052 s | 0.460 s | 4,456,448 |
+| 32 MiB | 1 | 1 | 1 (1 / 0) | 0.740 s | 1.127 s | 33,554,432 |
+| 32 MiB | 4 | 6 | 6 (3 / 3) | 0.242 s | 0.597 s | 34,734,080 |
+| 32 MiB | 8 | 6 | 8 (5 / 3) | 0.257 s | 0.774 s | 34,865,152 |
+| 64 MiB | 1 | 1 | 1 (1 / 0) | 1.493 s | 1.924 s | 67,108,864 |
+| 64 MiB | 4 | 6 | 6 (3 / 3) | 0.418 s | 0.824 s | 68,157,440 |
+| 64 MiB | 8 | 9 | 12 (6 / 6) | 0.357 s | 0.865 s | 69,206,016 |
+
+Each table row is a single run, not a median. The 64 MiB configured-eight fixture-handler peak of 9 does not mean the engine exceeded its configured worker limit: server handlers can remain alive briefly after the client cancels a range. This confirms why the report names the metric as handler concurrency and keeps engine worker count unavailable.
+
+Two 64 MiB, 8-connection, no-delay runs completed in 0.450 s and 0.604 s, with server request windows of 0.089 s and 0.125 s. In the latter run, 0.205 s elapsed before the first payload GET and 0.275 s after the last server handler completed. Thus the whole-command rate for small/medium loopback fixtures is dominated by process/controller setup and post-transfer completion as well as network transfer; this CLI measurement is not a pure engine throughput metric. The sample-to-sample variation also means these single trials must not be generalized.
+
+The historical 2 GiB comparison script was also audited without rerunning it. Its Radium `effective_connections` field was inferred as `configured_connections` unless a 429 log entry existed; the IDM value was a one-second sample of temporary segment files. Neither is an observed simultaneous HTTP request count. The script also times Radium from SQLite task-created/task-completed timestamps but IDM from launcher invocation until a one-second file-size poll. Therefore the historical 2.7% median IDM advantage is an integrity-verified end-to-end result, but the connection-count comparison and sub-3% timing difference are not precise enough to isolate engine performance. The two trials varied by about 57% for Radium and 53% for IDM between runs, consistent with substantial network/environment variation. Future benchmark-script output now marks effective connection counts unavailable unless actually instrumented.
+
+### Active range resplit guard (2026-10-25)
+
+`SegmentScheduler` now marks an active segment `split_pending` after assigning a suffix. The scheduler will not repeatedly shrink that same segment while its in-flight request still has the older end bound. It clears the mark after a request using the current bound reaches validated headers, or after rollback merges an unstarted stolen range. The regression `TestSegmentSchedulerDoesNotResplitInFlightRange` verifies the original range is not shrunk twice and the resulting byte partition remains contiguous and complete; the existing work-stealing rollback test also verifies the guard clears on rollback.
+
+Three baseline runs and five guarded runs used the same 16 MiB payload, 8 configured connections, 200 ms artificial delay after response headers before the first body chunk, and 5 ms after each 256 KiB chunk. All eight outputs matched the authoritative SHA-256. Each row is the median of its runs:
+
+| Scheduler | Runs | Engine transfer | Useful throughput | Whole command | Range requests | Split cancellations | Client received / unique committed | Duplicate received bytes | Fixture socket writes / reset errors | Peak live client requests |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Existing behavior | 3 | 770 ms | 20.8 MiB/s | 1.147 s | 17 | 11 | 16 / 16 MiB | 0 | 19,660,800 / 11 | 8 |
+| In-flight resplit guard | 5 | 516 ms | 31.0 MiB/s | 0.898 s | 6 | 5 | 16 / 16 MiB | 0 | 18,087,936 / 5 | 6 |
+
+On this delayed-response fixture the guarded median transfer was 33% shorter, with 65% fewer requests. The server fixture accepted 1,572,864 fewer socket-write bytes across the whole payload and recorded 6 fewer connection-reset handler failures, but these socket writes are not a packet capture and do not prove how many bytes crossed the network. This indicates request setup/ramp churn was costly in this test, even though the baseline did not duplicate body bytes in this particular case. The fixture is synthetic and this does not prove improvement on live servers. In a separate guarded 32 MiB / 4-connection / 5 ms-per-chunk run, the client received 33,882,112 bytes while 33,554,432 unique bytes were committed (327,680 repeated bytes across received ranges); SHA-256 still matched. Thus boundary-crossing reads can waste real client-received bytes, but the amount depends on response timing.
+
+Additional guarded checks completed with exact hashes: a 4 MiB / 8-connection fast local transfer finished with only 2 live client requests (showing the 50 ms ramp does not always reach configured concurrency); the 32 MiB / 4-connection paced case reached 4 live requests; and a 16 MiB simulated-429-cap-2 run received one HTTP 429 then completed. The full freshly rebuilt Release C++ suite passed 72/72, including range partition, rollback, resume, adaptive 429, and pause/recovery coverage. No live external comparison was performed.
+
 | Native compact table and New Download dialog | Compact Name column reserves 260 DPI-scaled px after shrinking oversized saved columns; progress bounds stay within Name; compact dialog action row fits within 440 DPI-scaled client pixels across supported DPI values | MSVC Release build; 71/71 C++ suites passed; staged compact dialog visually confirmed |
 
 | Task-row hover responsiveness | Moving between rows changes hover state and synchronously redraws the old/new row regions | `TestDesktopUiHitTestingAndMouseInteractions` included in 71/71 passing suites; updated executable staged |
+
+| Local HTTP runtime telemetry | Event starts/ends, request ranges/status/bytes, actual active request peak, worker starts/stops, split/cancel/retry events, measured waits, lifecycle phases, and consistency with fixture logs and output integrity | `tests/test_local_benchmark_telemetry.py`; local loopback fixture only |
+
+### Controlled local telemetry audit (2026-10-26)
+
+The 500 MB live artifact retained only scalar aggregate counters and no request-event array or original runner log, so its missing request traces cannot be recovered. The local runner now saves per-run client runtime events, phase events, fixture request records, reconciliation checks, and output hashes as standalone JSON. No HTTP engine or scheduler behavior was changed for this audit.
+
+Executed 3 repetitions of each 16 MiB scenario/configuration using `build_msvc/Release/radium.exe`: fast fixture (`0 ms` response latency, `0 ms` chunk pacing) and paced fixture (`25 ms` response latency, `5 ms` after each 256 KiB chunk), at 4 and 8 configured connections. The 12 16 MiB runs validated the test path; because those transfers ended too quickly to exercise 8-way concurrency, a second three-repeat matrix used 128 MiB files. The 128 MiB results are the diagnostic comparison below. All 12 128 MiB runs completed, all 12 final hashes matched, and all client/server request/range/status/byte consistency checks passed.
+
+| Fixture | Configured connections | Transfer time (median; range), ms | Init / finalization (median), ms | Useful throughput (median), MiB/s | Client active-request peak | Server payload-handler peak | All server handlers peak | Worker threads started | Worker-slot occupancy | Requests incl. probe | Splits / canceled requests | Discarded client bytes | Scheduler idle wait (aggregate), ms |
+| :--- | ---: | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- | ---: | ---: |
+| Fast | 4 | 965.6 (918.1–989.4) | 43.1 / 5.3 | 132.6 | 4 | 4 | 4 | 4 | 45.8% | 5 (5–8) | 3 / 3 | 196,608 | 522.7 |
+| Fast | 8 | 838.4 (330.6–984.0) | 42.6 / 3.9 | 152.7 | 6 (4–6) | 6 (4–6) | 6 | 6 (4–6) | 26.5% | 9 (8–10) | 7 / 7 | 634,880 | 697.9 |
+| Latency paced | 4 | 1,828.0 (1,650.4–2,052.3) | 66.7 / 4.0 | 70.0 | 4 | 4 | 4 (4–5) | 4 | 59.1% | 5 (5–6) | 3 / 3 | 196,608 | 774.7 |
+| Latency paced | 8 | 1,987.0 (1,984.7–2,021.5) | 65.7 / 4.7 | 64.4 | 7 | 6 (6–7) | 8 (8–9) | 7 | 29.7% | 9 (9–10) | 7 / 7 | 684,032 (643,072–1,069,056) | 1,463.4 |
+
+For the paced 128 MiB fixture, the 8-connection median was about 8.7% slower than the 4-connection median despite reaching 7 live client requests and 8–9 simultaneous server handlers (including handlers awaiting response headers). It also issued more ranges and discarded more callback bytes (0.51% of payload versus 0.15% at 4 connections). Worker-slot occupancy is calculated from actual worker start/stop lifetimes and is not CPU utilization. The excess bytes alone are too small to explain the timing difference. The fast 8-connection runs were highly variable, so their median is not stable evidence of a gain. These local fixture results do not establish behavior on public internet routes. No optimization is recommended from this sample: scheduler-lock wait and disk-write duration are still unmeasured, and the fixture's pacing is synthetic.
+
+Raw traces and summary: `benchmarks/results/local_telemetry_audit_20261026/` (16 MiB validation) and `benchmarks/results/local_telemetry_audit_20261026_128m/` (12-run diagnostic matrix). Each matrix directory contains one JSON file per run plus `summary.json`.
+
+### Lock and disk timing follow-up (2026-10-26)
+
+Added runtime measurements for scheduler lock wait/hold, segment-write lock wait/hold, per-write duration, worker queue wait, coordinator polling, and server response-header/body phases. The local fixture separately controls fixed response latency and per-chunk body pacing. No scheduler decisions or download behavior changed.
+
+Ran three repetitions for each of four cases (`fast`, 25 ms `latency_only`, 5 ms per-256-KiB `pacing_only`, and combined `latency_paced`) at 4 and 8 configured connections with identical 128 MiB payload bytes. All 24 runs completed, client/server telemetry reconciled, and output SHA-256 matched.
+
+| Fixture | Connections | Transfer median (range), ms | Scheduler lock wait/hold median, ms | Segment-write lock wait/hold median, ms | File-write total median, ms | Worker occupancy median | Fixture header/body median, ms |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fast | 4 | 777 (562–956) | 1.9 / 11.8 | 5.7 / 257.8 | 252.4 | 75.4% | 0.6 / 285.4 |
+| Fast | 8 | 879 (603–1,168) | 25.8 / 105.5 | 62.8 / 504.6 | 477.3 | 43.6% | 0.6 / 194.2 |
+| Latency only | 4 | 1,072 (890–1,077) | 46.7 / 121.2 | 104.2 / 534.7 | 519.9 | 52.3% | 26.0 / 15.9 |
+| Latency only | 8 | 1,119 (1,114–1,176) | 144.2 / 238.3 | 174.1 / 714.0 | 672.9 | 37.6% | 26.1 / 81.5 |
+| Pacing only | 4 | 1,414 (1,066–1,509) | 41.6 / 109.7 | 99.7 / 668.3 | 661.3 | 66.3% | 0.6 / 803.1 |
+| Pacing only | 8 | 1,387 (921–2,267) | 41.3 / 151.3 | 131.3 / 788.0 | 769.9 | 53.2% | 0.6 / 219.7 |
+| Latency paced | 4 | 1,352 (1,025–1,876) | 41.0 / 104.2 | 97.3 / 502.4 | 491.3 | 71.5% | 26.0 / 439.0 |
+| Latency paced | 8 | 1,192 (934–1,393) | 69.8 / 155.8 | 116.2 / 540.3 | 521.4 | 60.8% | 26.1 / 182.7 |
+
+Lock/write totals are accumulated across concurrent threads and can overlap in wall time; segment-write lock hold includes callback work. The request non-callback time is only an approximation and includes WinHTTP setup as well as response/network waiting. The latency-only case measured about 26 ms to response headers, while pacing-only showed sub-millisecond header delay and longer body-handler time, confirming the fixture distinguishes those effects. Scheduler-lock waits rise notably at 8 connections in fast and latency-only runs, making contention a plausible contributor, but the transfer medians also vary by scenario and overlap. Runtime tracing adds logging/timing overhead, so these transfer timings are diagnostic rather than production-performance measurements. These measurements do not establish lock contention, disk writing, worker scheduling, or network waiting as the single general bottleneck. No optimization is recommended from this local sample.
+
+The 24 per-run JSON traces and `summary.json` are in `benchmarks/results/local_lock_disk_audit_20261026/`; `report.md` contains full interpretation and verification details. Incremental MSVC Release build succeeded, the C++ suite passed 72/72, and the standalone telemetry fixture test passed. The active Python environment has no `pytest` module, so that test was invoked directly.

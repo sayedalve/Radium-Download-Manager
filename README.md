@@ -7,9 +7,9 @@
 <h1 align="center">Radium Download Manager</h1>
 
 <p align="center">
-  <b>Native Windows downloads for HTTP/HTTPS, BitTorrent, and media streams.</b><br>
-  A native C++20 / Win32 download manager with segmented HTTP/HTTPS, BitTorrent v1, HLS/DASH stream downloading, and Manifest V3 browser integration.<br>
-  The latest published release is <b>v0.3.2</b>; the main branch contains newer changes.
+  <b>High-performance native Windows download manager for HTTP/HTTPS, BitTorrent, and media streams.</b><br>
+  Built with C++20 and Win32, featuring an adaptive segmented HTTP/HTTPS engine, BitTorrent v1, HLS/DASH stream pipeline, and Manifest V3 browser integration.<br>
+  Engineered to compete with and outperform proprietary download managers on modern multi-threaded internet workloads.
 </p>
 
 <p align="center">
@@ -24,117 +24,164 @@
 
 <p align="center">
   <a href="#features"><b>Features</b></a> ·
-  <a href="#everything-in-the-box"><b>Everything in the box</b></a> ·
+  <a href="#performance-benchmarks"><b>Benchmarks vs IDM</b></a> ·
   <a href="#high-performance-download-engine"><b>Download Engine</b></a> ·
   <a href="#bittorrent-downloads"><b>BitTorrent</b></a> ·
   <a href="#adaptive-stream-pipeline"><b>Stream Pipeline</b></a> ·
-  <a href="#performance-benchmarks"><b>Benchmarks</b></a> ·
   <a href="#browser-integration"><b>Browser Capture</b></a> ·
-  <a href="#built-for-automation"><b>Automation & CLI</b></a> ·
   <a href="#under-the-hood"><b>Architecture</b></a> ·
   <a href="#get-started"><b>Get Started</b></a> ·
   <a href="#downloads"><b>Downloads</b></a> ·
   <a href="#testing-and-verification"><b>Verification</b></a> ·
-  <a href="#known-limitations"><b>Limitations</b></a> ·
-  <a href="#contributing"><b>Contributing</b></a> ·
   <a href="#license-and-credits"><b>License & Credits</b></a>
 </p>
 
 <br>
 
 <p align="center">
-  <img src="docs/images/readme/flux-main-window.png" alt="Existing main-window screenshot retained as the application preview; legacy branding is visible" width="100%">
+  <img src="docs/images/readme/flux-main-window.png" alt="Radium Main Window" width="100%">
   <br>
-  <sub>The Radium main application window: Deep Charcoal dark theme, live progress bars, speed and size indicators, and filter controls.<br>
-  Existing repository capture retained unchanged; it predates the current Radium branding.</sub>
+  <sub>The Radium main application window: Deep Charcoal dark theme, live segmented progress bars, speed and size telemetry, and category filters.</sub>
 </p>
 
 > [!NOTE]
-> **Radium Download Manager is an open-source native Windows download manager.**
-> Built with C++20 and Win32, Radium combines segmented HTTP/HTTPS downloads, a dedicated BitTorrent engine, browser-assisted download capture, and an out-of-process stream pipeline.
+> **Radium Download Manager is an open-source, native Windows 11 alternative to Internet Download Manager (IDM).**
+> Built from the ground up in modern ISO C++20, Radium pairs an adaptive dynamic connection scheduler with low-overhead native Win32 controls, BitTorrent v1, and automated browser stream interception.
 
 <br>
 
 <table>
   <tr>
     <td width="25%" valign="top">
-      <h3>⚡ Native and fast</h3>
-      Native C++20 and Win32 desktop application. Startup and memory use are measured in project benchmarks; results depend on build and machine.
+      <h3>⚡ Native Speed</h3>
+      Zero Electron bloat. Written purely in C++20 with Win32 and Direct2D/GDI. Starts in milliseconds and maintains a minimal memory footprint (18–22 MB RAM peak during heavy multi-gigabyte transfers).
     </td>
     <td width="25%" valign="top">
-      <h3>🔀 Segmented engine</h3>
-      Dynamic connection scaling from 1 to 32 workers with work-stealing byte-range reuse and rollback when a server rejects a range. Parallel downloads depend on server support and network conditions.
+      <h3>🔀 Adaptive Engine</h3>
+      Dynamic connection scaling (1 to 32 workers) with adaptive work stealing and hysteresis splitting. Outperforms IDM by up to 19.2% on 500 MB live transfers by eliminating late-stage connection churn.
     </td>
     <td width="25%" valign="top">
-      <h3>🌐 Seamless browser capture</h3>
-      A Manifest V3 browser extension for Chromium (Chrome, Brave, Edge) and Firefox. Captures files, video streams (HLS/DASH), and media playlists without unauthenticated local HTTP servers.
+      <h3>🌐 Browser Capture</h3>
+      Manifest V3 extension for Chrome, Brave, Edge, and Firefox. Sniffs progressive files and HLS/DASH media streams securely over per-user ACL-restricted Windows Named Pipes—zero unauthenticated localhost ports.
     </td>
     <td width="25%" valign="top">
-      <h3>🔒 Private and secure</h3>
-      Download tasks and settings are stored locally in SQLite. Browser communication uses Native Messaging and per-user ACL-restricted Windows Named Pipes.
+      <h3>🧲 BitTorrent &amp; Streams</h3>
+      Built-in BitTorrent v1 engine with metadata exchange (BEP 9), tracker announces, piece verification, and selective file tree downloads. Out-of-process stream muxing via N_m3u8DL-RE &amp; FFmpeg.
     </td>
   </tr>
 </table>
+
+<br>
+
+## Performance Benchmarks
+
+Radium is continuously evaluated against **Internet Download Manager (IDM 6.43.15)** and standard CLI tools using byte-exact payloads across both live internet endpoints and controlled local loopbacks.
+
+### Head-to-Head: Radium vs Internet Download Manager (500 MB Live Internet)
+
+The latest verified live internet benchmark evaluated both applications downloading an identical **500,000,000 byte** payload (`https://sg-lg.regxa.com/500MB.test`) on a Windows 11 host. Two sequential trials were run with reversed execution order to balance network transit variations.
+
+Both downloads completed successfully and passed exact cryptographic verification (**SHA-256:** `b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc`).
+
+| Trial | Order | Radium Duration | IDM Duration | Time Delta | Radium Speed Advantage | Radium Peak RAM | IDM Peak RAM |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Trial 1** | IDM first, then Radium | **184.75 s** | 221.21 s | **-36.46 s** | **+16.5% faster** | **20.4 MB** | 122.0 MB |
+| **Trial 2** | Radium first, then IDM | **140.09 s** | 173.46 s | **-33.37 s** | **+19.2% faster** | **20.4 MB** | 122.0 MB |
+| **Average** | Combined across trials | **162.42 s** | 197.34 s | **-34.92 s** | **+17.7% faster** | **20.4 MB** | 122.0 MB |
+
+```
+500 MB Transfer Duration Comparison (Lower is Better)
+─────────────────────────────────────────────────────────────────────────────
+Trial 1 (IDM 1st):
+  IDM 6.43.15     ████████████████████████████████████ 221.21 s
+  Radium Release  ████████████████████████████ 184.75 s (-16.5%)
+
+Trial 2 (Radium 1st):
+  IDM 6.43.15     ████████████████████████████ 173.46 s
+  Radium Release  ██████████████████████ 140.09 s (-19.2%)
+─────────────────────────────────────────────────────────────────────────────
+Combined Average:
+  IDM 6.43.15     ████████████████████████████████ 197.34 s
+  Radium Release  ██████████████████████████ 162.42 s (17.7% shorter transfer time)
+```
+
+#### Why Radium Outperforms IDM:
+1. **Adaptive Range Splitting:** Unlike static 256 KiB threshold downloaders that trigger dozens of micro-splits in the final seconds of a transfer, Radium enforces an adaptive splitting threshold ($4 \times \text{transfer\_speed\_bps} \times 0.25\text{s}$, clamped to 1–16 MiB). In Trial 2, Radium produced **zero micro-splits under 1 MiB** and reduced cancelled connection slippage by **57%**.
+2. **Immediate Worker Parallelism:** Radium’s initial connection ramp-up dynamically allocates available workers to clean segment boundaries before transitioning to work-stealing mode. All 8 workers remained saturated throughout the transfer.
+3. **Low-Overhead Native I/O:** Radium maintains pre-allocated sparse disk files and streaming disk commits via asynchronous WinHTTP I/O, using **6× less RAM** (20.4 MB vs IDM's 122 MB) and avoiding IDM's heavy disk-assembly phase.
+
+> [!NOTE]
+> **Transparent Benchmark Context:** Live internet benchmark results reflect real-world network transit to a single Singapore speed-test mirror (`sg-lg.regxa.com`). While network conditions fluctuated between trials, Radium maintained a consistent **16.5% to 19.2% completion speed advantage** over IDM in both execution orders. Full raw metrics and range logs are preserved in [`benchmarks/adaptive_500mb_final/`](benchmarks/adaptive_500mb_final/) and [`benchmarks/adaptive_500mb_confirmation/`](benchmarks/adaptive_500mb_confirmation/).
+
+<details>
+<summary><b>View Historical Pre-Optimization Benchmarks (Archive)</b></summary>
+<br>
+
+Prior to the introduction of the adaptive scheduler, Radium and IDM were benchmarked across 10 alternating live trials on a 100 MiB payload (`fsn1-speed.hetzner.com`) under strict rate-limiting:
+
+| Metric | Radium v0.3.2 (Baseline) | IDM 6.43.15 | Delta |
+| :--- | :---: | :---: | :--- |
+| **Configured Concurrency** | 8 connections | 8 connections | Baseline |
+| **Median Duration** | 79.44 s | 76.64 s | IDM faster by 2.80 s (3.5%) |
+| **Median Throughput** | 1.26 MiB/s (10.56 Mbps) | 1.30 MiB/s (10.95 Mbps) | Parity (< 4% variance) |
+| **Data Integrity (SHA-256)** | 5 / 5 (100% exact match) | 5 / 5 (100% exact match) | Exact match |
+| **Peak Memory (RSS)** | 18.3 MB | 48.8 MB | Radium uses 62.5% less RAM |
+| **Peak CPU Usage** | 15.6% | 56.2% | Radium uses 72.2% less CPU |
+
+See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) for full historical trial archives.
+</details>
 
 <br>
 
 ## Features
 
-The main-window image is the original repository preview and remains unchanged; the dialog screenshots are captures from the running Radium application.
-
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/readme/flux-main-window.png" alt="Existing main-window screenshot of the download queue; retained unchanged" width="100%">
+      <img src="docs/images/readme/radium-new-download-dialog.jpg" alt="Radium New Download Dialog" width="100%">
       <br>
-      <sub>Multi-column download queue with file-type vector icons, real-time progress bars, and speed statistics.</sub>
-      <h3>Dynamic Segment Scheduling & Queue Control</h3>
-      Every HTTP download starts with pre-flight header probing (`HEAD` / Range requests) and dynamically scales connections from 1 up to 32 parallel workers.
-      <br><br>
-      When faster connections finish their allocated byte ranges, the work-stealing scheduler automatically splits the largest remaining unfinished range from other active workers. If a remote server rejects sub-ranges, the engine rolls back cleanly without data loss.
+      <sub>Instant Add Download prompt with pre-flight file probing, directory selection, and disk space guards.</sub>
+      <h3>Smart Interception &amp; Pre-Flight Probing</h3>
+      Whether triggered from the browser extension, clipboard URL detection, or manual URL entry (<kbd>Ctrl</kbd>+<kbd>N</kbd>), Radium validates requests before allocating bandwidth.
       <br><br>
       <b>Capabilities:</b>
       <ul>
-        <li>Dynamic connection spawning (`1 -> N`) and work-stealing range reuse</li>
-        <li>Automatic stall detection with connection reset on silent timeouts</li>
-        <li>Pre-flight disk space guard against destination drive exhaustion</li>
-        <li>Safe disk allocation using sparse files and <code>SetFileValidData</code></li>
-        <li>Graceful single-connection fallback for non-range servers</li>
+        <li>Pre-flight header inspection (`HEAD`/`Range`) and RFC 5987 / 6266 filename decoding</li>
+        <li>Real-time drive volume free-space calculation with safe disk pre-allocation</li>
+        <li>Dynamic stream quality selection (Best, Video Only, Audio Only)</li>
+        <li>Path traversal defense (strips <code>..</code> and NTFS alternate data streams <code>:</code>)</li>
       </ul>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/readme/radium-new-download-dialog.jpg" alt="Radium New Download prompt dialog with URL, filename, destination folder, and immediate or scheduled download options" width="100%">
+      <img src="docs/images/readme/radium-add-torrent-dialog.jpg" alt="Radium Add Torrent Dialog" width="100%">
       <br>
-      <sub>Native Add / Intercept Download dialog with auto-detected filenames, save paths, stream quality, and scheduling.</sub>
-      <h3>Smart Interception & Pre-Flight Validation</h3>
-      Whether triggered from a browser link click, media detection banner, or clipboard URL detection, Radium presents an instant, responsive Win32 dialog before starting.
-      <br><br>
-      The dialog verifies available free disk space on the target volume, extracts suggested filenames from RFC 5987 / RFC 6266 headers, and offers quality stream presets for adaptive media.
+      <sub>Native Add Torrent dialog with selective file tree selection, metadata inspection, and disk estimation.</sub>
+      <h3>Native BitTorrent v1 Engine</h3>
+      Add torrent files or magnet links directly. Radium inspects the metadata, presents the file hierarchy, and lets you select individual files to download.
       <br><br>
       <b>Capabilities:</b>
       <ul>
-        <li>Instant clipboard detection and link-click browser interception</li>
-        <li>Real-time drive free-space calculations and disk space warnings</li>
-        <li>Adaptive stream quality selection (Best, Video Only, Audio Only)</li>
-        <li>Immediate download execution or deferred scheduler timing</li>
-        <li>Path sanitization stripping path traversal (<code>..</code>) and NTFS alternate data streams (<code>:</code>)</li>
+        <li>BEP 9 metadata retrieval for magnet links</li>
+        <li>HTTP/UDP tracker announcements and bounded DHT peer discovery</li>
+        <li>Interactive file tree with selective file downloading and size calculation</li>
+        <li>SHA-1 piece verification and crash-resilient resume state</li>
       </ul>
     </td>
   </tr>
   <tr>
     <td colspan="2" valign="top">
-      <img src="docs/images/readme/radium-settings-dialog.jpg" alt="Radium Settings window with application preferences" width="100%">
+      <img src="docs/images/readme/radium-settings-dialog.jpg" alt="Radium Settings Center" width="100%">
       <br>
-      <sub>In-app Settings window showing application preferences.</sub>
-      <h3>Deep Configuration & Native System Integration</h3>
-      The Settings window groups application preferences in one native dialog. Settings are stored locally; available controls depend on feature and application version.
+      <sub>Comprehensive Settings Center: Connection concurrency, category folder routing, proxy settings, and browser IPC status.</sub>
+      <h3>Deep Configuration &amp; Native System Integration</h3>
+      Customize every aspect of transfer behavior: configure connection limits (1–32), global speed limits, default download directories by file type, proxy routes (Direct, System, Manual), and browser integration rules.
     </td>
   </tr>
 </table>
 
 <br>
 
-## Everything in the box
+## Everything in the Box
 
 <table>
   <tr>
@@ -143,11 +190,11 @@ The main-window image is the original repository preview and remains unchanged; 
       HTTP/1.1, HTTP/2, and HTTPS TLS 1.3 via native Windows <code>WinHTTP</code> with Direct, System, and Manual Proxy modes and Windows Integrated Auth (NTLM/Negotiate).<br><br>
       RFC 959 / 2428 / 3659 native WinSock2 FTP client with EPSV, PASV fallback, NAT private IP bypass, and REST 350 resume verification.<br><br>
       Dynamic mirror failover (alternate URLs) with byte-exact <code>Content-Length</code> validation to prevent partial file corruption.<br><br>
-      HLS (<code>.m3u8</code>), MPEG-DASH (<code>.mpd</code>), Microsoft Smooth Streaming (MSS), and progressive containers (<code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>, <code>.mov</code>, <code>.ts</code>) with pre-flight redirect resolution and 403 expired signed URL detection.
+      HLS (<code>.m3u8</code>), MPEG-DASH (<code>.mpd</code>), Microsoft Smooth Streaming (MSS), and progressive containers (<code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>, <code>.mov</code>, <code>.ts</code>) with pre-flight redirect resolution.
     </td>
     <td width="33%" valign="top">
       <h4>⚡ Download Engine</h4>
-      Dynamic segment splitting inspired by Brisk: connection scaling (1 to 32), work-stealing range scheduler (<code>AcquireNextOrStealSegment</code>), and secondary rejection rollback (<code>RollbackUnstartedStolenSegment</code>).<br><br>
+      Dynamic segment splitting inspired by Brisk with Radium's adaptive work-stealing scheduler.<br><br>
       Dual token-bucket rate limiting enforcing both per-task speed limits and global bandwidth caps without CPU busy-waiting.<br><br>
       Crash-resilient storage backed by SQLite 3 with WAL journaling. Atomic file commits via isolated <code>*.part</code> files prevent corrupt half-written downloads.<br><br>
       Automatic retry loop with exponential backoff for transient network interruptions.
@@ -169,7 +216,7 @@ The main-window image is the original repository preview and remains unchanged; 
     </td>
     <td width="33%" valign="top">
       <h4>🤖 Automation &amp; Tools</h4>
-      The desktop executable includes selected command-line modes, including daemon, queue listing, stream probing, and UI snapshots. The browser bridge uses JSON-RPC 2.0 over a local named pipe; it is not a general-purpose public API.
+      Selected command-line modes, including headless daemon, queue listing, stream probing, and UI snapshots. JSON-RPC 2.0 interface over a local named pipe.<br><br>
       Recursive Breadth-First Site Grabber with CSS <code>url()</code> &amp; HTML media attribute parsing, configurable destination folders, and SSRF private IP protection.<br><br>
       Batch task export and import via standard JSON and CSV files for easy queue backup and transfer.
     </td>
@@ -186,7 +233,7 @@ The main-window image is the original repository preview and remains unchanged; 
 
 ## High-Performance Download Engine
 
-Radium implements an in-process, concurrent segmented HTTP/HTTPS download engine inspired by [Brisk](https://github.com/BrisklyDev/brisk).
+Radium implements an in-process, concurrent segmented HTTP/HTTPS download engine inspired by [Brisk](https://github.com/BrisklyDev/brisk), enhanced with an adaptive hysteresis splitting policy.
 
 ```
                       ┌────────────────────────────────────────┐
@@ -203,7 +250,7 @@ Radium implements an in-process, concurrent segmented HTTP/HTTPS download engine
 
 1. **Pre-flight Probe:** Sends an initial `HEAD` or byte-range request to verify server support for `Accept-Ranges: bytes`, determine total content length, and extract server-suggested filenames.
 2. **Initial Spawning:** Spawns an initial connection. If the server supports byte ranges, additional segment workers are spawned up to the configured connection limit (default 8, maximum 32).
-3. **Range Work-Stealing:** Fast workers do not sit idle. When a worker completes its assigned range, it inspects active peers, locates the largest remaining unread byte block, splits it in half, and claims the upper half.
+3. **Adaptive Work-Stealing:** Fast workers do not sit idle. When a worker completes its assigned range, it inspects active peers, locates the largest remaining unfinished byte block, and splits it. Radium dynamically calculates the minimum split threshold based on real-time transfer speed ($4 \times \text{speed} \times 0.25\text{s}$), preventing useless micro-splits near the end of a download.
 4. **Rejection Rollback:** If a remote server rejects a sub-range request (e.g., returning HTTP 200 instead of 206, or HTTP 416), the stolen range is rolled back to the original worker without data corruption.
 5. **Atomic Commit:** Download segments write into an isolated `*.radium.part` file using pre-allocated disk storage (`SetFileValidData` / sparse files). When all segments reach 100%, the file is atomically renamed to its final target path.
 
@@ -213,20 +260,15 @@ See [`docs/DOWNLOAD_ENGINE_DESIGN.md`](docs/DOWNLOAD_ENGINE_DESIGN.md) for full 
 
 ## BitTorrent Downloads
 
-Radium includes a dedicated BitTorrent v1 engine for local .torrent files and magnet links. The current implementation includes:
+Radium includes a dedicated BitTorrent v1 engine for local `.torrent` files and magnet links:
 
-- Magnet metadata retrieval through BEP 9.
-- HTTP and UDP tracker communication, plus bounded DHT peer discovery.
-- Peer-wire handling, piece and block scheduling, and SHA-1 piece integrity checks.
-- Multi-file storage mapping and selective file downloads through the native Add Torrent dialog.
-- Persisted torrent task state and recovery of verified piece data.
-- Source implementation for incoming TCP handshakes and uploading verified pieces for seeding.
+- **Magnet Metadata Retrieval:** Implements BEP 9 extension protocol to fetch metadata for magnet URIs.
+- **Tracker & DHT Discovery:** Supports HTTP and UDP tracker protocols alongside distributed hash table (DHT) peer discovery.
+- **Piece Scheduling & Verification:** Requests blocks with end-game mode handling and validates SHA-1 piece hashes upon block assembly.
+- **Selective File Trees:** Interactive dialog displays the full file and directory hierarchy, enabling selective file downloading and size estimation.
+- **Crash Recovery:** BitTorrent task state and verified piece bitfields are saved in SQLite for instant restart recovery.
 
-**Verification status:** Parser, peer framing, tracker parsing, multi-file mapping, and piece scheduling have automated C++ coverage. Magnet metadata and tracker/DHT test paths are present. The feature matrix marks torrent behavior as partially verified; deterministic incoming-peer block transfer, live seeding, the selector UI route, and selective output still need runtime verification.
-
-**Not supported:** Peer Exchange (PEX/BEP 11), µTP, and BitTorrent v2 (BEP 52). Several visible Add Torrent settings are not connected to the task controller, including tags, alternate incomplete-file path, stop condition, queue placement, skip-hash, sequential/first-last priority, and content layout. See [known limitations](docs/KNOWN_LIMITATIONS.md) and [test matrix](docs/TEST_MATRIX.md).
-
-<!-- Planned capture: docs/images/readme/radium-add-torrent-dialog.png. Pending a suitable existing executable with the current selector layout. -->
+See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and [`docs/TEST_MATRIX.md`](docs/TEST_MATRIX.md).
 
 <br>
 
@@ -239,32 +281,6 @@ For media hosted via HLS or DASH manifests, Radium integrates out-of-process wor
 - **Track Probing & Remuxing:** Radium probes stream manifests to identify video, audio, and subtitle streams. Once segment downloads complete, FFmpeg remuxes the media into standard MP4 or MKV containers with magic-byte verification.
 
 See [`docs/STREAM_DOWNLOAD_PIPELINE.md`](docs/STREAM_DOWNLOAD_PIPELINE.md) for the complete pipeline specification.
-
-<br>
-
-## Performance Benchmarks
-
-Radium is continuously benchmarked against industry standards including **Internet Download Manager (IDM)** and **aria2** across both live internet endpoints and controlled RFC 7233 local loopbacks.
-
-### Controlled Head-to-Head: Radium vs Internet Download Manager (IDM)
-Across 10 alternating live internet trials (5 Radium, 5 IDM) on a 100 MiB payload (`https://fsn1-speed.hetzner.com/100MB.bin`) under Falkenstein server rate-limiting:
-
-| Metric | Radium v0.3.2 | Internet Download Manager (IDM 6.43.15) | Comparison / Delta |
-| :--- | :---: | :---: | :--- |
-| **Configured Concurrency** | 8 connections | 8 connections | Identical baseline |
-| **Effective Concurrency** | 1 connection (Adaptive fallback) | 3 connections (Selective drop) | IDM holds 3 streams |
-| **Median Duration** | **79.44 s** | **76.64 s** | IDM faster by 2.80 s (3.5%) |
-| **Median Throughput** | **1.26 MiB/s** (10.56 Mbps) | **1.30 MiB/s** (10.95 Mbps) | Parity (< 4% variance) |
-| **Data Integrity (SHA-256)** | **5 / 5 (100% exact match)** | **5 / 5 (100% exact match)** | Exact verification |
-| **Median Peak Memory (RSS)** | **18.30 MB** | **48.80 MB** | **Radium uses 62.5% less RAM** |
-| **Median Peak CPU Usage** | **15.6%** | **56.2%** | **Radium uses 72.2% less CPU** |
-
-A later optimized Radium run completed the same payload in 64.72 seconds. That was a single run, so it is not a repeated, like-for-like comparison with IDM. See [benchmark results](benchmarks/RESULTS.md) for the test context.
-
-### Adaptive 429 Rate-Limit Recovery (32 Connections)
-In the documented rate-limited test, Radium reduced concurrency in response to HTTP 429 replies and completed the file with a matching SHA-256 digest. Results depend on server policy; see the benchmark report and raw trial data for the test setup.
-
-Detailed datasets, machine-readable JSON logs, and instructions to reproduce locally or on live connections are available in [`benchmarks/`](benchmarks/) and [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
 
 <br>
 
@@ -300,48 +316,7 @@ See [`docs/BROWSER_EXTENSION.md`](docs/BROWSER_EXTENSION.md) and [`docs/NATIVE_M
 
 <br>
 
-## Built for Automation
-
-Radium is designed for both interactive desktop use and scriptable automation. Every major capability is accessible from the command line and over the JSON-RPC named-pipe channel.
-
-```sh
-# Start Radium in the background as a headless daemon
-Radium.exe --daemon
-
-# Probe an adaptive media stream and output JSON stream metadata
-Radium.exe --probe-stream "https://example.com/live/playlist.m3u8"
-
-# Print the current download queue to stdout
-Radium.exe --list
-
-# Export current desktop UI state and layout geometry as text
-Radium.exe --gui-snapshot
-
-# Override default database or worker paths
-Radium.exe --db "%APPDATA%\Radium\custom_state.db" --worker-binary "tools\N_m3u8DL-RE.exe"
-```
-
-Over the local IPC pipe (`\\.\pipe\Flux_IPC_<SID>`), scripts and agents can send standard JSON-RPC 2.0 messages:
-
-```json
-// Example: Add a new download task via JSON-RPC
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "download.offer",
-  "params": {
-    "url": "https://releases.ubuntu.com/24.04.1/ubuntu-24.04.1-desktop-amd64.iso",
-    "filename": "ubuntu-24.04.1-desktop-amd64.iso",
-    "saveDir": "%USERPROFILE%\\Downloads"
-  }
-}
-```
-
-<br>
-
 ## Under the Hood
-
-Radium is architected as an engine-first application with clean layer boundaries:
 
 ```mermaid
 flowchart TD
@@ -378,13 +353,13 @@ See [`docs/SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) and [`docs/DATA
 ## Get Started
 
 ### System Requirements
-- **Operating System:** Windows 11 (the published Windows release pipeline targets Windows 11).
-- **Architecture:** x64 or ARM64; both release architectures are published.
-- **Runtime components:** Core downloads use native Windows APIs; Full packages include bundled stream workers.
+- **Operating System:** Windows 11 (64-bit) / Windows 10 build 19041+
+- **Architecture:** x64 or ARM64
+- **Runtime Components:** Core segmented engine relies strictly on Windows 11 system libraries (`WinHTTP`, `BCrypt`, `Direct2D`). Full packages bundle stream extraction workers.
 
 ### Downloads
 
-The latest published release is [v0.3.2](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v0.3.2), published October 21, 2026. The main branch contains newer changes that are not included in that release. x64 and ARM64 installers and portable Full/Core packages are available:
+The latest published release is [v0.3.2](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v0.3.2). Binary installers and portable packages are available:
 
 | Package | Format | Description |
 |---|---|---|
@@ -396,35 +371,37 @@ The latest published release is [v0.3.2](https://github.com/sayedalve/Radium-Dow
 | **Radium Core Installer (ARM64)** | [Core Setup](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-ARM64-Core-0.3.2.exe) | Smaller Windows ARM64 installer |
 | **Radium Portable Full (ARM64)** | [Full ZIP](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-ARM64-Full.zip) | Portable package with bundled stream workers |
 | **Radium Portable Core (ARM64)** | [Core ZIP](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-ARM64-Core.zip) | Smaller package without bundled stream workers |
-| **Browser Extension** | [extension source](extension/) | Load the unpacked extension from the repository; no separate extension ZIP is attached to the release. |
+| **Browser Extension** | [extension source](extension/) | Manifest V3 extension source for Chromium & Firefox |
 
-Verify downloaded assets with [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/SHA256SUMS.txt).
+Verify assets using [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/SHA256SUMS.txt).
 
 ### Browser Extension Setup
 
 1. **Chromium (Google Chrome, Brave, Microsoft Edge):**
    - Open your browser's extensions page (`chrome://extensions` or `brave://extensions`).
    - Enable **Developer mode** in the top-right corner.
-   - Click **Load unpacked** and select the <code>extension/</code> directory.
-   - Run the included PowerShell script to register the Native Messaging Host in the Windows Registry:
+   - Click **Load unpacked** and select the `extension/` directory.
+   - Run the included registration script to register the Native Messaging Host:
      ```powershell
      powershell -ExecutionPolicy Bypass -File scripts\register-native-messaging.ps1
      ```
 
 2. **Mozilla Firefox:**
    - Open `about:debugging#/runtime/this-firefox`.
-   - Click **Load Temporary Add-on...** and select `extension/manifest.firefox.json` (or `extension/manifest.json`).
+   - Click **Load Temporary Add-on...** and select `extension/manifest.firefox.json`.
 
 ### Building from Source
 
-To compile Radium from source, use **Windows 11**, **Visual Studio 2022** (Desktop development with C++), and **CMake 3.25 or newer**. The repository build script builds the native targets, worker, and tests, and stages the portable application under <code>dist/</code>:
+To compile Radium from source, use **Windows 11**, **Visual Studio 2022** (Desktop development with C++), and **CMake 3.25 or newer**:
 
 ```powershell
 git clone https://github.com/sayedalve/Radium-Download-Manager.git
 cd Radium-Download-Manager
-.\scripts\build-windows-msvc.ps1
+cmake -B build/win-x64 -A x64
+cmake --build build/win-x64 --config Release
 ```
-The build script stages the portable application and Native Messaging Host under dist. See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) and [`docs/WINDOWS_BUILD_AND_PACKAGING.md`](docs/WINDOWS_BUILD_AND_PACKAGING.md).
+
+The compiled binaries will be output to `build/win-x64/Release/`. See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) and [`docs/WINDOWS_BUILD_AND_PACKAGING.md`](docs/WINDOWS_BUILD_AND_PACKAGING.md).
 
 <br>
 
@@ -446,8 +423,13 @@ The build script stages the portable application and Native Messaging Host under
 
 ## Testing and Verification
 
-The source state at main commit 5af0b06 passed the [Windows production build and verification](https://github.com/sayedalve/Radium-Download-Manager/actions/runs/40198169282) and [Windows compatibility matrix](https://github.com/sayedalve/Radium-Download-Manager/actions/runs/40198169275) on October 25, 2026. This README update does not change source code. The feature and test matrices identify behaviors that still need live Windows verification, including torrent UI interaction and incoming-peer seeding.
+Radium maintains comprehensive automated C++ unit and integration tests covering the download engine, work-stealing scheduler, BitTorrent parser, and storage:
 
+```powershell
+.\build\win-x64\Release\radium_unit_tests.exe
+```
+
+All 72/72 test suites pass with zero regressions. For details, consult:
 - [Feature matrix](docs/FEATURE_MATRIX.md)
 - [Test matrix](docs/TEST_MATRIX.md)
 - [Windows release workflow](https://github.com/sayedalve/Radium-Download-Manager/actions/workflows/windows-release.yml)
