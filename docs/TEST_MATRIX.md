@@ -3,7 +3,7 @@
 **Document Status:** Active Verification Matrix (`v0.3.0` — `62 / 62` C++20 Suites, `15 / 15` Extension Suites, `8 / 8` Smoke Suites, `7 / 7` Playwright Suites, and `5 / 5` Security Checks Executed & Passed on Windows 11 Host)  
 **Last Reviewed:** 2026-10-20  
 **Scope:** Maps every functional (`FR-001`–`FR-035`), non-functional (`NFR-001`–`NFR-016`), and bug-regression (`BUG-001`–`BUG-035`, `FDM-001`–`FDM-029`) test to its exact command, verification category, and outcome.  
-**Related Documents:** [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md), [BUG_FIX_LOG.md](BUG_FIX_LOG.md), [FEATURE_MATRIX.md](FEATURE_MATRIX.md), [TEST_STRATEGY.md](TEST_STRATEGY.md)
+**Related Documents:** [archive/maintenance-audits/RELEASE_READINESS_REPORT.md](archive/maintenance-audits/RELEASE_READINESS_REPORT.md), [archive/maintenance-audits/BUG_FIX_LOG.md](archive/maintenance-audits/BUG_FIX_LOG.md), [FEATURE_MATRIX.md](FEATURE_MATRIX.md), [TEST_STRATEGY.md](TEST_STRATEGY.md)
 
 ---
 

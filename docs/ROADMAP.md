@@ -30,7 +30,7 @@ gantt
 
 ### Milestone 0 (`M0`): Engineering Documentation & Architecture Baseline *(Completed 2026-10-16)*
 - **Goals:** Inspect workspace and upstream projects (`Brisk`, `Cat Catch`, `N_m3u8DL-RE`); establish C++20/Win32 architecture, ADRs (`0001`–`0008`), security threat model, and complete Markdown documentation suite.
-- **Exit Criteria:** All 35+ required Markdown files created and validated via [DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md).
+- **Exit Criteria:** All 35+ required Markdown files created and validated via [DOCUMENTATION_AUDIT.md](archive/maintenance-audits/DOCUMENTATION_AUDIT.md).
 
 ---
 

@@ -3,7 +3,7 @@
 **Document Status:** Active Engineering Limitations Log (`v0.2.0`)  
 **Last Reviewed:** 2026-10-16  
 **Scope:** Documented browser restrictions, unsupported DRM/streaming formats, upstream tool constraints, and host environment boundaries.  
-**Related Documents:** [PRODUCT_COMPLETION_AUDIT.md](PRODUCT_COMPLETION_AUDIT.md), [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md), [MEDIA_DETECTION.md](MEDIA_DETECTION.md), [STREAM_DOWNLOAD_PIPELINE.md](STREAM_DOWNLOAD_PIPELINE.md)
+**Related Documents:** [archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md](archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md), [archive/maintenance-audits/RELEASE_READINESS_REPORT.md](archive/maintenance-audits/RELEASE_READINESS_REPORT.md), [MEDIA_DETECTION.md](MEDIA_DETECTION.md), [STREAM_DOWNLOAD_PIPELINE.md](STREAM_DOWNLOAD_PIPELINE.md)
 
 ---
 

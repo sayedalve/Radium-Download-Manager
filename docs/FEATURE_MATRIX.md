@@ -3,7 +3,7 @@
 **Document Status:** Verified Implementation Traceability Matrix (`v0.3.0` — Production Readiness Verified)  
 **Last Reviewed:** 2026-10-20  
 **Scope:** Maps every functional (`FR-001`–`FR-038`) and non-functional (`NFR-001`–`NFR-016`) requirement to its actual source module, upstream reference, verification classification, and test coverage.  
-**Related Documents:** [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md), [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md), [TEST_MATRIX.md](TEST_MATRIX.md), [TEST_STRATEGY.md](TEST_STRATEGY.md), [BUG_FIX_LOG.md](BUG_FIX_LOG.md)
+**Related Documents:** [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md), [archive/maintenance-audits/RELEASE_READINESS_REPORT.md](archive/maintenance-audits/RELEASE_READINESS_REPORT.md), [TEST_MATRIX.md](TEST_MATRIX.md), [TEST_STRATEGY.md](TEST_STRATEGY.md), [archive/maintenance-audits/BUG_FIX_LOG.md](archive/maintenance-audits/BUG_FIX_LOG.md)
 
 ---
 

@@ -3,7 +3,7 @@
 **Document Status:** Verified Repository State Audit (`v0.2.0`)  
 **Last Reviewed:** 2026-10-16  
 **Scope:** Records the progression of the OpenIDM repository from its initial greenfield state (`Turn 1`) through the `v0.1.0` prototype (`Turn 3`) to the completed `v0.2.0` release.  
-**Related Documents:** [PRODUCT_COMPLETION_AUDIT.md](PRODUCT_COMPLETION_AUDIT.md), [BUG_FIX_LOG.md](BUG_FIX_LOG.md), [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md)
+**Related Documents:** [archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md](archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md), [archive/maintenance-audits/BUG_FIX_LOG.md](archive/maintenance-audits/BUG_FIX_LOG.md), [archive/maintenance-audits/RELEASE_READINESS_REPORT.md](archive/maintenance-audits/RELEASE_READINESS_REPORT.md)
 
 ---
 
@@ -13,7 +13,7 @@
 | :--- | :--- | :--- |
 | **Stage 1 (Initial Greenfield Audit)** | Empty workspace (`0` source files). | Created 41-file engineering specification and ADR baseline. |
 | **Stage 2 (`v0.1.0` Initial Implementation)** | Initial C++20 engine, SQLite store, IPC server, and extension implemented. | Passed initial HTTP/HLS/DASH tests, but exhibited 7 product-completion gaps (console queue output on default launch, stub Win32 message loop, Python `tools/N_m3u8DL-RE` script, hardcoded `/usr/bin/ffmpeg`, and missing `#ifdef _WIN32` socket/file/process implementations). |
-| **Stage 3 (`v0.2.0` Product Completion — Current)** | Full UI redesign, 14 bug fixes (`BUG-001`–`BUG-014`), compiled native C++20 stream worker (`tools/N_m3u8DL-RE`), complete `#ifdef _WIN32` implementations, and expanded 26-suite test harness. | **`26 / 26` automated test suites passing (`10` C++ unit/regression, `8` Node.js extension, `8` Python E2E integration & benchmark suites)**. See [PRODUCT_COMPLETION_AUDIT.md](PRODUCT_COMPLETION_AUDIT.md) and [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md). |
+| **Stage 3 (`v0.2.0` Product Completion — Current)** | Full UI redesign, 14 bug fixes (`BUG-001`–`BUG-014`), compiled native C++20 stream worker (`tools/N_m3u8DL-RE`), complete `#ifdef _WIN32` implementations, and expanded 26-suite test harness. | **`26 / 26` automated test suites passing (`10` C++ unit/regression, `8` Node.js extension, `8` Python E2E integration & benchmark suites)**. See [PRODUCT_COMPLETION_AUDIT.md](archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md) and [RELEASE_READINESS_REPORT.md](archive/maintenance-audits/RELEASE_READINESS_REPORT.md). |
 
 ---
 
