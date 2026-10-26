@@ -26,7 +26,7 @@ Both the desktop application (`CMakeLists.txt` `VERSION 0.3.0`) and browser exte
    - Compiles `radium.exe` (WIN32 GUI subsystem) and `radium-nmh.exe` (CUI console subsystem) in `Release` mode (`/O2 /GL /LTCG /MT /guard:cf`).
    - Fetches and verifies the exact SHA-256-pinned upstream `N_m3u8DL-RE.exe` and `ffmpeg.exe` binaries via `scripts/fetch-workers.ps1`.
    - Runs automated C++20 unit tests (`radium_unit_tests.exe`), browser extension tests (`test_extension_detection.js`), and integration tests (`run_all_integration_tests.py`).
-   - Builds `Radium-Setup-x64-vX.Y.Z.exe` via Inno Setup 6 (`installer/radium.iss` / `installer/flux.iss`), configured with lowest privilege execution (`{autopf}`) and component selection.
+   - Builds `Radium-Setup-x64-vX.Y.Z.exe` via Inno Setup 6 (`installer/radium.iss` / `installer/radium.iss`), configured with lowest privilege execution (`{autopf}`) and component selection.
    - Packages standalone portable archives (`Radium-vX.Y.Z-Windows-x64-Full.zip` and `Radium-vX.Y.Z-Windows-x64-Core.zip`) via `scripts/package-release-zip.ps1`.
    - Computes SHA-256 digests for all generated packages in `dist/SHA256SUMS.txt`.
    - Drafts a GitHub Release on `https://github.com/sayedalve/Radium-Download-Manager/releases` with attached distribution packages and licenses.

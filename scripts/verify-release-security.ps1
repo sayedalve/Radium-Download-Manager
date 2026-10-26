@@ -166,7 +166,7 @@ Write-Host "  -> PASS: Credential redaction filters verified against threat mode
 Write-Host "`n[Check 5/5] Auditing Installation & Path Security Invariants..." -ForegroundColor Yellow
 $issPath = Join-Path $RepoRoot "installer\radium.iss"
 if (-not (Test-Path $issPath)) {
-    $issPath = Join-Path $RepoRoot "installer\flux.iss"
+    $issPath = Join-Path $RepoRoot "installer\radium.iss"
 }
 if (Test-Path $issPath) {
     $issContent = Get-Content $issPath -Raw

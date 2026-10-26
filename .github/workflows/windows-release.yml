@@ -215,7 +215,7 @@ jobs:
         run: |
           $issPath = "installer/radium.iss"
           if (-not (Test-Path $issPath)) {
-            $issPath = "installer/flux.iss"
+            $issPath = "installer/radium.iss"
           }
           $isccExe = $null
           $isccCandidates = @(

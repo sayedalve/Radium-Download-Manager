@@ -20,7 +20,7 @@
 4. **Python** (`3.11+` with `cryptography`) -- required for running the end-to-end integration and benchmark test harnesses.
 
 ### 1.2 Optional Tools
-- **Inno Setup 6 (`6.3+`):** Required only when compiling the `.exe` installer (`installer/radium.iss` / `installer/flux.iss`).
+- **Inno Setup 6 (`6.3+`):** Required only when compiling the `.exe` installer (`installer/radium.iss` / `installer/radium.iss`).
 - **Windows Sandbox:** Built-in Windows 11 Pro/Enterprise feature used for clean-machine installer and uninstaller testing.
 - **Sysinternals Process Explorer:** Recommended for verifying Job Object process isolation, Named Pipe DACLs, and memory usage.
 
@@ -82,7 +82,7 @@ Alternatively, use the automated build pipeline script:
 powershell -ExecutionPolicy Bypass -File scripts\package-release-zip.ps1 -Version "0.3.0" -PackageType Both
 
 # Compile Inno Setup installer
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\flux.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\radium.iss
 ```
 
 ---
