@@ -9,7 +9,7 @@
 <p align="center">
   <b>High-performance native Windows download manager for HTTP/HTTPS, BitTorrent, and media streams.</b><br>
   Built with C++20 and Win32, featuring an adaptive segmented HTTP/HTTPS engine, BitTorrent v1, HLS/DASH stream pipeline, and Manifest V3 browser integration.<br>
-  Engineered to compete with and outperform proprietary download managers on modern multi-threaded internet workloads.
+  Designed to deliver transparent, low-overhead performance with measured benchmarks against industry standards.
 </p>
 
 <p align="center">
@@ -58,7 +58,7 @@
     </td>
     <td width="25%" valign="top">
       <h3>🔀 Adaptive Engine</h3>
-      Dynamic connection scaling (1 to 32 workers) with adaptive work stealing and hysteresis splitting. Outperforms IDM by up to 19.2% on 500 MB live transfers by eliminating late-stage connection churn.
+      Dynamic connection scaling (1 to 32 workers) with adaptive work stealing and hysteresis splitting. Measured 16.5% to 19.2% shorter completion times than IDM in 500 MB live transfer trials by eliminating late-stage connection churn.
     </td>
     <td width="25%" valign="top">
       <h3>🌐 Browser Capture</h3>
@@ -77,58 +77,73 @@
 
 Radium is continuously evaluated against **Internet Download Manager (IDM 6.43.15)** and standard CLI tools using byte-exact payloads across both live internet endpoints and controlled local loopbacks.
 
-### Head-to-Head: Radium vs Internet Download Manager (500 MB Live Internet)
+### Head-to-Head: Radium (v0.3.5 Dev Build) vs Internet Download Manager (500 MB Live Internet)
 
 The latest verified live internet benchmark evaluated both applications downloading an identical **500,000,000 byte** payload (`https://sg-lg.regxa.com/500MB.test`) on a Windows 11 host. Two sequential trials were run with reversed execution order to balance network transit variations.
 
+> [!NOTE]
+> **Build Identification:** The tested Radium executable is the development build of **v0.3.5** incorporating the adaptive range splitting policy. The latest published release package is **v0.3.2**.
+
 Both downloads completed successfully and passed exact cryptographic verification (**SHA-256:** `b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc`).
 
-| Trial | Order | Radium Duration | IDM Duration | Time Delta | Radium Speed Advantage | Radium Peak RAM | IDM Peak RAM |
+| Trial | Order | Radium Duration | IDM Duration | Completion Time Reduction | Throughput (Radium / IDM) | Peak RAM (Radium / IDM) | Memory Reduction |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Trial 1** | IDM first, then Radium | **184.75 s** | 221.21 s | **-36.46 s** | **+16.5% faster** | **20.4 MB** | 122.0 MB |
-| **Trial 2** | Radium first, then IDM | **140.09 s** | 173.46 s | **-33.37 s** | **+19.2% faster** | **20.4 MB** | 122.0 MB |
-| **Average** | Combined across trials | **162.42 s** | 197.34 s | **-34.92 s** | **+17.7% faster** | **20.4 MB** | 122.0 MB |
+| **Trial 1** | IDM first, then Radium | **184.75 s** | 221.21 s | **16.48%** (-36.46 s) | **2.71 MB/s** / 2.26 MB/s (+19.91%) | **20.5 MB** / 53.8 MB | **61.90%** |
+| **Trial 2** | Radium first, then IDM | **140.09 s** | 173.46 s | **19.24%** (-33.37 s) | **3.57 MB/s** / 2.88 MB/s (+23.96%) | **20.4 MB** / 122.2 MB | **83.31%** |
+| **Mean** | Combined across trials | **162.42 s** | 197.34 s | **17.69%** (-34.91 s) | **3.14 MB/s** / 2.57 MB/s (+22.18%) | **20.4 MB** / 88.0 MB | **76.76%** |
 
 ```
 500 MB Transfer Duration Comparison (Lower is Better)
 ─────────────────────────────────────────────────────────────────────────────
 Trial 1 (IDM 1st):
   IDM 6.43.15     ████████████████████████████████████ 221.21 s
-  Radium Release  ████████████████████████████ 184.75 s (-16.5%)
+  Radium v0.3.5   ████████████████████████████ 184.75 s (-16.48% time)
 
 Trial 2 (Radium 1st):
   IDM 6.43.15     ████████████████████████████ 173.46 s
-  Radium Release  ██████████████████████ 140.09 s (-19.2%)
+  Radium v0.3.5   ██████████████████████ 140.09 s (-19.24% time)
 ─────────────────────────────────────────────────────────────────────────────
-Combined Average:
+Combined Mean:
   IDM 6.43.15     ████████████████████████████████ 197.34 s
-  Radium Release  ██████████████████████████ 162.42 s (17.7% shorter transfer time)
+  Radium v0.3.5   ██████████████████████████ 162.42 s (17.69% shorter transfer time)
 ```
 
-#### Why Radium Outperforms IDM:
+#### Measured Factors Influencing Transfer Efficiency:
 1. **Adaptive Range Splitting:** Unlike static 256 KiB threshold downloaders that trigger dozens of micro-splits in the final seconds of a transfer, Radium enforces an adaptive splitting threshold ($4 \times \text{transfer\_speed\_bps} \times 0.25\text{s}$, clamped to 1–16 MiB). In Trial 2, Radium produced **zero micro-splits under 1 MiB** and reduced cancelled connection slippage by **57%**.
 2. **Immediate Worker Parallelism:** Radium’s initial connection ramp-up dynamically allocates available workers to clean segment boundaries before transitioning to work-stealing mode. All 8 workers remained saturated throughout the transfer.
-3. **Low-Overhead Native I/O:** Radium maintains pre-allocated sparse disk files and streaming disk commits via asynchronous WinHTTP I/O, using **6× less RAM** (20.4 MB vs IDM's 122 MB) and avoiding IDM's heavy disk-assembly phase.
+3. **Low-Overhead Native I/O:** Radium maintains pre-allocated sparse disk files and streaming disk commits via asynchronous WinHTTP I/O, using substantially less RAM (20.4–20.5 MB peak RSS vs IDM's 53.8–122.2 MB peak RSS across the trials). In Trial 2, IDM reached 122.2 MB during active segment assembly, whereas Radium avoided a post-processing assembly pass.
 
 > [!NOTE]
-> **Transparent Benchmark Context:** Live internet benchmark results reflect real-world network transit to a single Singapore speed-test mirror (`sg-lg.regxa.com`). While network conditions fluctuated between trials, Radium maintained a consistent **16.5% to 19.2% completion speed advantage** over IDM in both execution orders. Full raw metrics and range logs are preserved in [`benchmarks/adaptive_500mb_final/`](benchmarks/adaptive_500mb_final/) and [`benchmarks/adaptive_500mb_confirmation/`](benchmarks/adaptive_500mb_confirmation/).
+> **Transparent Benchmark Context & Limitations:** Live internet benchmark results reflect real-world network transit to a single Singapore speed-test mirror (`sg-lg.regxa.com`). While network transit throughput varied across the trials (demonstrated by both applications completing faster in Trial 2), Radium achieved a **16.48% to 19.24% shorter completion time** in these specific back-to-back trials. These measurements establish performance under these specific network and server conditions, but do not claim universal superiority across all endpoints. Full raw metrics, trace logs, and verification tools are preserved in [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
 
 <details>
-<summary><b>View Historical Pre-Optimization Benchmarks (Archive)</b></summary>
+<summary><b>View Historical Benchmarks (100 MiB Rate-Limited & 2 GB Large-File)</b></summary>
 <br>
 
-Prior to the introduction of the adaptive scheduler, Radium and IDM were benchmarked across 10 alternating live trials on a 100 MiB payload (`fsn1-speed.hetzner.com`) under strict rate-limiting:
+#### 1. Historical 100 MiB Alternating Trials (Hetzner Falkenstein Rate-Limited)
+Prior to the adaptive scheduler, Radium v0.3.2 and IDM were benchmarked across 10 alternating live trials on a 100 MiB payload (`fsn1-speed.hetzner.com`) under strict server rate-limiting:
 
-| Metric | Radium v0.3.2 (Baseline) | IDM 6.43.15 | Delta |
+| Metric | Radium v0.3.2 (Production Release) | IDM 6.43.15 | Delta / Notes |
 | :--- | :---: | :---: | :--- |
 | **Configured Concurrency** | 8 connections | 8 connections | Baseline |
-| **Median Duration** | 79.44 s | 76.64 s | IDM faster by 2.80 s (3.5%) |
+| **Median Duration** | 79.44 s | 76.64 s | IDM faster by 2.80 s (3.53%) |
 | **Median Throughput** | 1.26 MiB/s (10.56 Mbps) | 1.30 MiB/s (10.95 Mbps) | Parity (< 4% variance) |
 | **Data Integrity (SHA-256)** | 5 / 5 (100% exact match) | 5 / 5 (100% exact match) | Exact match |
 | **Peak Memory (RSS)** | 18.3 MB | 48.8 MB | Radium uses 62.5% less RAM |
-| **Peak CPU Usage** | 15.6% | 56.2% | Radium uses 72.2% less CPU |
+| **Peak CPU Usage** | 15.6% | 56.2% | Radium uses 72.2% less peak CPU |
 
-See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) for full historical trial archives.
+#### 2. Historical 2 GB Large-File ISO Transfer (AlmaLinux 8.10)
+Tested on an authentic 2,140,143,616 byte ISO (`AlmaLinux-8.10-x86_64-minimal.iso`) with 8 configured connections:
+
+| Metric | Radium v0.3.2 (Production Release) | IDM 6.43.15 | Delta / Notes |
+| :--- | :---: | :---: | :--- |
+| **Median Duration** | 596.20 s | 580.50 s | IDM faster by 15.70 s (2.70%) |
+| **Median Throughput** | 3.60 MiB/s (3.78 MB/s) | 3.68 MiB/s (3.86 MB/s) | IDM +2.2% throughput |
+| **Data Integrity (SHA-256)** | 2 / 2 (100% exact match) | 2 / 2 (100% exact match) | Exact match (`e524329700...`) |
+| **Peak Memory (RSS)** | ~42–45 MB | ~58–61 MB | Radium uses ~26% less RAM |
+| **Peak CPU Usage** | ~3.8–4.1% | ~5.2–5.8% | Radium uses ~27% less CPU |
+
+See [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) and [`benchmarks/IDM_RADIUM_2GB_COMPARISON.md`](benchmarks/IDM_RADIUM_2GB_COMPARISON.md) for full trial records.
 </details>
 
 <br>
