@@ -85,6 +85,8 @@ benchmarks/fixtures/temp_*
 
 # Raw benchmark trial outputs (preserved in GitHub Actions artifact raw-benchmark-evidence-archive)
 benchmarks/results/**/*repeat*.json
+benchmarks/**/summary*.json
+benchmarks/**/*.csv
 
 
 # Local helper scripts and artifacts

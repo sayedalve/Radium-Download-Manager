@@ -156,7 +156,7 @@ Both downloads completed successfully and passed exact cryptographic verificatio
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Trial 1** | IDM first, then Radium | **184.75 s** | 221.21 s | **16.48%** (-36.46 s) | **2.71 MB/s** / 2.26 MB/s (+19.91%) | **20.5 MB** / 53.8 MB | **61.90%** |
 | **Trial 2** | Radium first, then IDM | **140.09 s** | 173.46 s | **19.24%** (-33.37 s) | **3.57 MB/s** / 2.88 MB/s (+23.96%) | **20.4 MB** / 122.2 MB | **83.31%** |
-| **Mean** | Combined across trials | **162.42 s** | 197.34 s | **17.69%** (-34.91 s) | **3.14 MB/s** / 2.57 MB/s (+22.18%) | **20.4 MB** / 88.0 MB | **76.76%** |
+| **Mean** | Combined across trials | **162.42 s** | 197.34 s | **17.69%** (-34.92 s) | **3.14 MB/s** / 2.57 MB/s (+22.18%) | **20.4 MB** / 88.0 MB | **76.76%** |
 
 ```
 500 MB Transfer Duration Comparison (Lower is Better)
@@ -175,7 +175,7 @@ Combined Mean:
 ```
 
 #### Measured Factors Influencing Transfer Efficiency:
-1. **Adaptive Range Splitting:** Unlike static 256 KiB threshold downloaders that trigger dozens of micro-splits in the final seconds of a transfer, Radium enforces an adaptive splitting threshold ($4 \times \text{transfer\_speed\_bps} \times 0.25\text{s}$, clamped to 1–16 MiB). In Trial 2, Radium produced **zero micro-splits under 1 MiB** and reduced cancelled connection slippage by **57%**.
+1. **Adaptive Range Splitting:** Unlike static 256 KiB threshold downloaders that trigger dozens of micro-splits in the final seconds of a transfer, Radium enforces an adaptive splitting threshold ($4 \times \text{transfer\_speed\_bps} \times 0.25\text{s}$, clamped to 1–16 MiB). This reduced discarded connection slippage by **57.3%** in Trial 1 (from 4.76 MB down to 2.04 MB) and **42.4%** in Trial 2 (down to 2.74 MB), eliminating late-stage connection churn.
 2. **Immediate Worker Parallelism:** Radium’s initial connection ramp-up dynamically allocates available workers to clean segment boundaries before transitioning to work-stealing mode. All 8 workers remained saturated throughout the transfer.
 3. **Low-Overhead Native I/O:** Radium maintains pre-allocated sparse disk files and streaming disk commits via asynchronous WinHTTP I/O, using substantially less RAM (20.4–20.5 MB peak RSS vs IDM's 53.8–122.2 MB peak RSS across the trials). In Trial 2, IDM reached 122.2 MB during active segment assembly, whereas Radium avoided a post-processing assembly pass.
 

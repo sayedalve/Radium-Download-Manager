@@ -35,7 +35,7 @@ The active comparison evaluated the **Adaptive Range Splitting Policy** implemen
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Trial 1** | IDM $\rightarrow$ Radium | **184.75 s** | 221.21 s | **16.48%** (-36.46 s) | 2.71 MB/s / 2.26 MB/s (+19.91%) | **20.5 MB** / 53.8 MB | **61.90%** | Exact Match |
 | **Trial 2** | Radium $\rightarrow$ IDM | **140.09 s** | 173.46 s | **19.24%** (-33.37 s) | 3.57 MB/s / 2.88 MB/s (+23.96%) | **20.4 MB** / 122.2 MB | **83.31%** | Exact Match |
-| **Mean** | Combined | **162.42 s** | 197.34 s | **17.69%** (-34.91 s) | 3.14 MB/s / 2.57 MB/s (+22.18%) | **20.4 MB** / 88.0 MB | **76.76%** | Exact Match |
+| **Mean** | Combined | **162.42 s** | 197.34 s | **17.69%** (-34.92 s) | 3.14 MB/s / 2.57 MB/s (+22.18%) | **20.4 MB** / 88.0 MB | **76.76%** | Exact Match |
 
 *Formulas applied:*
 - *Completion Time Reduction:* `(IDM Time - Radium Time) / IDM Time * 100`
@@ -79,8 +79,8 @@ Full report: [`benchmarks/IDM_RADIUM_2GB_COMPARISON.md`](IDM_RADIUM_2GB_COMPARIS
 ## 5. Raw Evidence Retention & GitHub Actions Artifact Archives
 
 To prevent repository clone bloat while preserving scientific evidence and reproducibility:
-- **Compact Summaries & Reports:** Reusable test fixtures, Markdown reports, and structured `summary.json` rollups remain tracked directly in the repository under `benchmarks/results/`.
-- **Raw Multi-Repeat Trial Dumps:** Individual per-run trace dumps (`*repeat*.json`, totaling ~31.1 MB across 144 runs) are preserved in downloadable GitHub Actions workflow artifacts:
+- **Consolidated Summaries & Reports:** Reusable test fixtures, Markdown reports, and consolidated audit summaries (such as [`benchmarks/results/LOCAL_BENCHMARK_TELEMETRY_CONSOLIDATED_REPORT.md`](results/LOCAL_BENCHMARK_TELEMETRY_CONSOLIDATED_REPORT.md)) remain tracked directly in Git.
+- **Raw Multi-Repeat Trial Dumps & Telemetry Traces:** Individual per-run trace dumps (`*repeat*.json`, `summary*.json`, and generated CSV files totaling ~69 MB across the benchmarking passes) are preserved in downloadable GitHub Actions workflow artifacts:
   - **Archive Artifact Name:** `raw-benchmark-evidence-archive`
   - **Source Workflow Run:** [Run #40286662496](https://github.com/sayedalve/Radium-Download-Manager/actions/runs/40286662496)
   - **Retention:** 90 days (and re-uploaded on scheduled benchmark runs via `benchmark-comparison.yml` with a 30-day rolling window).

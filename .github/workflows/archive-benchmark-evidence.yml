@@ -5,18 +5,28 @@ on:
 
 jobs:
   archive-evidence:
-    name: Archive Tracked Benchmark Raw Evidence
+    name: Archive Tracked Benchmark Raw Evidence & Historical Telemetry
     runs-on: windows-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Package Raw Benchmark Outputs
+      - name: Package Raw Benchmark Outputs & Telemetry
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path "staging_archive"
-          Copy-Item -Recurse -Force "benchmarks" "staging_archive\benchmarks"
+          New-Item -ItemType Directory -Force -Path "staging_archive\benchmarks"
+          Copy-Item -Recurse -Force "benchmarks" "staging_archive"
+
+          # Write archive metadata
+          $meta = @{
+            archive_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+            git_commit = $env:GITHUB_SHA
+            git_ref = $env:GITHUB_REF
+            description = "Preserved raw trial telemetry, JSON runs, and CSV traces for Radium Download Manager benchmarks"
+          } | ConvertTo-Json -Depth 5
+          Set-Content -Path "staging_archive\archive_metadata.json" -Value $meta -Encoding utf8
+
           Write-Host "Staged benchmarks directory for artifact upload"
           Get-ChildItem -Recurse "staging_archive" | Measure-Object -Property Length -Sum | ForEach-Object {
             Write-Host "Total archive size: $([Math]::Round($_.Sum / 1MB, 2)) MB ($($_.Count) items)"
@@ -26,6 +36,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: raw-benchmark-evidence-archive
-          path: staging_archive/benchmarks/
+          path: staging_archive/
           retention-days: 90
           if-no-files-found: error
