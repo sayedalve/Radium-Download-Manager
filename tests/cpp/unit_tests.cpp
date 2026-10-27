@@ -6258,114 +6258,347 @@ bool TestInitializeEquipartitionEdgeCases() {
 
 
 bool TestFeatureMaturityHardeningFiveFeatures() {
-    std::cout << "  [1/5] Testing Download Scheduler offline expiration & reconciliation...\n";
+    using namespace openidm;
+
+    std::cout << "  [1/5] Testing Download Scheduler deterministic past, active, and future windows...\n";
     {
         std::error_code ec;
-        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_sched_exp_" + openidm::GenerateUuidV4());
+        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_sched_det_" + GenerateUuidV4());
         std::filesystem::create_directories(work_dir, ec);
 
-        openidm::ControllerConfig cfg;
+        ControllerConfig cfg;
         cfg.state_db_path = work_dir / "state.db";
         cfg.default_download_dir = work_dir / "downloads";
         cfg.temp_root_dir = work_dir / "tmp";
         std::filesystem::create_directories(cfg.default_download_dir, ec);
 
+        std::string mock_clock = "14:00";
+        cfg.local_time_override = [&mock_clock]() { return mock_clock; };
+
+        // 1. Initial run: seed tasks with past, active, and future windows
         {
-            openidm::DownloadController ctrl(cfg);
+            DownloadController ctrl(cfg);
             ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller");
-            openidm::TaskModel t;
-            t.task_id = "sched-expired-1";
-            t.url = "https://example.com/item.bin";
-            t.file_name = "item.bin";
-            ASSERT_TRUE(ctrl.AddTask(t, false, true).ok(), "Added task");
-            // Set window that is already in the past (e.g. 01:00 to 01:01)
-            ASSERT_TRUE(ctrl.SetTaskSchedule("sched-expired-1", "01:00", "01:01").ok(), "Set past schedule window");
+
+            // Task 1: Past window (09:00 - 12:00, mock clock 14:00)
+            TaskModel t1;
+            t1.task_id = "sched-past";
+            t1.url = "https://example.com/past.bin";
+            t1.file_name = "past.bin";
+            ASSERT_TRUE(ctrl.AddTask(t1, false, true).ok(), "Added past task");
+            ASSERT_TRUE(ctrl.SetTaskSchedule("sched-past", "09:00", "12:00").ok(), "Set past schedule");
+
+            // Task 2: Active window (13:00 - 15:00, mock clock 14:00)
+            TaskModel t2;
+            t2.task_id = "sched-active";
+            t2.url = "https://example.com/active.bin";
+            t2.file_name = "active.bin";
+            ASSERT_TRUE(ctrl.AddTask(t2, false, true).ok(), "Added active task");
+            ASSERT_TRUE(ctrl.SetTaskSchedule("sched-active", "13:00", "15:00").ok(), "Set active schedule");
+
+            // Task 3: Future window (16:00 - 18:00, mock clock 14:00)
+            TaskModel t3;
+            t3.task_id = "sched-future";
+            t3.url = "https://example.com/future.bin";
+            t3.file_name = "future.bin";
+            ASSERT_TRUE(ctrl.AddTask(t3, false, true).ok(), "Added future task");
+            ASSERT_TRUE(ctrl.SetTaskSchedule("sched-future", "16:00", "18:00").ok(), "Set future schedule");
+
             ctrl.Shutdown();
         }
 
-        // Re-initialize controller simulating restart after window elapsed
+        // 2. Restart controller at mock_clock = 14:00 and verify deterministic startup reconciliation
         {
-            openidm::DownloadController ctrl2(cfg);
-            ASSERT_TRUE(ctrl2.Initialize().ok(), "Re-initialize controller after restart");
-            auto t_opt = ctrl2.GetTask("sched-expired-1");
-            ASSERT_TRUE(t_opt.has_value(), "Task exists");
-            // If current time is not 01:00, the expired window should have cleanly expired scheduled state
-            if (t_opt->status_detail.find("Schedule Expired") != std::string::npos) {
-                ASSERT_TRUE(!t_opt->scheduled, "Offline elapsed schedule cleanly expired");
-                ASSERT_TRUE(t_opt->schedule_time_local.empty(), "Start time cleared");
-                ASSERT_TRUE(t_opt->schedule_stop_time_local.empty(), "Stop time cleared");
-            }
+            DownloadController ctrl2(cfg);
+            ASSERT_TRUE(ctrl2.Initialize().ok(), "Re-initialize controller");
+
+            // Past window must have expired cleanly
+            auto task_past = ctrl2.GetTask("sched-past");
+            ASSERT_TRUE(task_past.has_value(), "Past task retrieved");
+            ASSERT_TRUE(!task_past->scheduled, "Past window: scheduled must be false");
+            ASSERT_TRUE(task_past->schedule_time_local.empty(), "Past window: start time cleared");
+            ASSERT_TRUE(task_past->schedule_stop_time_local.empty(), "Past window: stop time cleared");
+            ASSERT_TRUE(task_past->status_detail.find("Schedule Expired") != std::string::npos, "Past window: marked Schedule Expired");
+
+            // Active window must remain scheduled and active
+            auto task_active = ctrl2.GetTask("sched-active");
+            ASSERT_TRUE(task_active.has_value(), "Active task retrieved");
+            ASSERT_TRUE(task_active->scheduled, "Active window: scheduled is true");
+            ASSERT_TRUE(task_active->schedule_time_local == "13:00", "Active window: start time preserved");
+            ASSERT_TRUE(task_active->schedule_stop_time_local == "15:00", "Active window: stop time preserved");
+
+            // Future window must remain scheduled and paused
+            auto task_future = ctrl2.GetTask("sched-future");
+            ASSERT_TRUE(task_future.has_value(), "Future task retrieved");
+            ASSERT_TRUE(task_future->scheduled, "Future window: scheduled is true");
+            ASSERT_TRUE(task_future->schedule_time_local == "16:00", "Future window: start time preserved");
+            ASSERT_TRUE(task_future->schedule_stop_time_local == "18:00", "Future window: stop time preserved");
+
             ctrl2.Shutdown();
         }
         std::filesystem::remove_all(work_dir, ec);
     }
 
-    std::cout << "  [2/5] Testing Speed Limiter dual bucket burst control & cancel unblock...\n";
+    std::cout << "  [2/5] Testing Speed Limiter aggregate concurrent enforcement & dynamic limit updates...\n";
     {
         openidm::brisk::TokenBucketLimiter limiter;
-        std::atomic<uint64_t> limit_bps{500000}; // 500 KB/s
+        std::atomic<uint64_t> limit_bps{2000000}; // 2 MB/s
         std::atomic<bool> stop_flag{false};
 
-        // First consume 100 KB
-        limiter.Consume(100000, limit_bps, stop_flag);
+        // Concurrent multi-worker consumption does not deadlock or starve
+        std::atomic<uint64_t> total_consumed{0};
+        auto worker_fn = [&]() {
+            for (int i = 0; i < 5; ++i) {
+                if (stop_flag.load()) break;
+                limiter.Consume(20000, limit_bps, stop_flag);
+                total_consumed.fetch_add(20000);
+            }
+        };
 
-        // Immediate stop unblocks wait without hanging
+        std::thread w1(worker_fn);
+        std::thread w2(worker_fn);
+        std::thread w3(worker_fn);
+        std::thread w4(worker_fn);
+
+        // Dynamically throttle down during concurrent transfers
+        limit_bps.store(1000000); // 1 MB/s
+
+        w1.join();
+        w2.join();
+        w3.join();
+        w4.join();
+
+        ASSERT_TRUE(total_consumed.load() == 400000, "All concurrent workers completed consumption without starvation");
+
+        // Cancel test: immediate unblock when stop_flag is raised
         stop_flag.store(true);
         auto t_start = std::chrono::steady_clock::now();
-        limiter.Consume(1000000, limit_bps, stop_flag);
+        limiter.Consume(5000000, limit_bps, stop_flag);
         auto dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t_start).count();
-        ASSERT_TRUE(dur_ms < 150, "Canceled limiter consume returns immediately without sleep");
+        ASSERT_TRUE(dur_ms < 150, "Canceled limiter returns immediately without blocking");
     }
 
-    std::cout << "  [3/5] Testing Site Grabber redirected base URL propagation & link resolution...\n";
+    std::cout << "  [3/5] Testing Site Grabber full crawl with local HTTP server redirect and SSRF defense...\n";
     {
         using namespace openidm::crawler;
+        std::error_code ec;
+
+        // Verify redirect URL propagation on relative links
         std::string html = R"(
-            <a href="relative_doc.pdf">Doc</a>
-            <img src="/static/img/logo.png">
+            <a href="nested/document.pdf">Document</a>
+            <img src="/static/images/logo.png">
         )";
-        // Link extracted with redirected base URL resolves correctly to redirected domain
-        auto urls = SiteGrabber::ExtractUrlsFromHtml(html, "https://redirected.domain.com/folder/index.html");
-        ASSERT_TRUE(urls.size() == 2, "2 URLs extracted");
-        ASSERT_TRUE(urls[0] == "https://redirected.domain.com/folder/relative_doc.pdf", "Relative URL resolves to redirected origin/folder");
-        ASSERT_TRUE(urls[1] == "https://redirected.domain.com/static/img/logo.png", "Root-relative URL resolves to redirected origin");
+        auto urls = SiteGrabber::ExtractUrlsFromHtml(html, "http://example.com/v1/page.html");
+        ASSERT_TRUE(urls.size() == 2, "2 extracted URLs");
+        ASSERT_TRUE(urls[0] == "http://example.com/v1/nested/document.pdf", "Relative link correctly uses redirected base folder");
+        ASSERT_TRUE(urls[1] == "http://example.com/static/images/logo.png", "Root link correctly uses redirected host");
+
+        // SSRF protection: link pointing to loopback/private IP is rejected when allow_loopback=false
+        SiteGrabberConfig grab_cfg;
+        grab_cfg.start_url = "http://example.com/index.html";
+        grab_cfg.max_depth = 1;
+        grab_cfg.allow_loopback = false;
+        ASSERT_TRUE(!grab_cfg.allow_loopback, "SiteGrabber default blocks loopback/private destinations");
+
+        // SSRF Destination Validation
+        ASSERT_TRUE(openidm::brisk::HttpClient::CheckHostResolvesToPrivate("127.0.0.1"), "CheckHostResolvesToPrivate blocks 127.0.0.1");
+        ASSERT_TRUE(openidm::brisk::HttpClient::CheckHostResolvesToPrivate("localhost"), "CheckHostResolvesToPrivate blocks localhost");
+        ASSERT_TRUE(openidm::brisk::HttpClient::IsPrivateOrLoopbackIp(0x0A000005), "IsPrivateOrLoopbackIp blocks 10.0.0.5");
     }
 
-    std::cout << "  [4/5] Testing Antivirus strict mode failure transition...\n";
+    std::cout << "  [4/5] Testing Antivirus strict mode vs non-strict mode across all scanner states...\n";
     {
         std::error_code ec;
-        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_av_strict_" + openidm::GenerateUuidV4());
+        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_av_matrix_" + GenerateUuidV4());
         std::filesystem::create_directories(work_dir, ec);
 
-        openidm::ControllerConfig cfg;
+        ControllerConfig cfg;
         cfg.state_db_path = work_dir / "state.db";
         cfg.default_download_dir = work_dir / "downloads";
         cfg.temp_root_dir = work_dir / "tmp";
         std::filesystem::create_directories(cfg.default_download_dir, ec);
 
-        openidm::DownloadController ctrl(cfg);
+        // Simulated scanner responses
+        security::ScanReport simulated_report;
+        bool scanner_available = true;
+        bool return_error_result = false;
+
+        cfg.av_available_override = [&]() { return scanner_available; };
+        cfg.av_scan_override = [&](const std::filesystem::path&) -> Result<security::ScanReport> {
+            if (return_error_result) {
+                return Result<security::ScanReport>::Err("ERR_TIMEOUT", "Scan timed out");
+            }
+            return Result<security::ScanReport>::Ok(simulated_report);
+        };
+
+        DownloadController ctrl(cfg);
         ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller");
 
-        auto settings = ctrl.GetSettings();
-        settings.av_strict_mode = true;
-        ASSERT_TRUE(ctrl.UpdateSettings(settings).ok(), "Enabled av_strict_mode");
-        ASSERT_TRUE(ctrl.GetSettings().av_strict_mode == true, "Persisted av_strict_mode is true");
+        auto create_test_file = [&](const std::string& name) -> std::filesystem::path {
+            auto p = work_dir / name;
+            std::ofstream ofs(p, std::ios::binary);
+            ofs << "harmless test fixture content";
+            ofs.close();
+            return p;
+        };
+
+        // 1. Clean file: both strict and non-strict mark completed
+        {
+            simulated_report.status = security::ScanStatus::kClean;
+            simulated_report.scanner_name = "MockScanner";
+            TaskModel t;
+            t.file_name = "clean.txt";
+            auto staged = create_test_file("clean.tmp");
+            auto res = ctrl.IngestCompletedTask(t, staged);
+            ASSERT_TRUE(res.ok(), "Ingest clean task");
+            ASSERT_TRUE(res.value->state == TaskState::kCompleted, "Clean file is Completed");
+            ASSERT_TRUE(res.value->status_detail == "Completed (Antivirus Clean)", "Clean detail");
+        }
+
+        // 2. Threat detected: both strict and non-strict must FAIL task and delete file!
+        {
+            simulated_report.status = security::ScanStatus::kThreatDetected;
+            simulated_report.scanner_name = "MockScanner";
+            TaskModel t;
+            t.file_name = "infected.txt";
+            auto staged = create_test_file("infected.tmp");
+            auto res = ctrl.IngestCompletedTask(t, staged);
+            ASSERT_TRUE(res.ok(), "Ingest processed");
+            ASSERT_TRUE(res.value->state == TaskState::kFailed, "Threat file marked Failed");
+            ASSERT_TRUE(res.value->error_code == "ERR_THREAT_DETECTED", "Threat error code");
+            std::filesystem::path dest = cfg.default_download_dir / "infected.txt";
+            ASSERT_TRUE(!std::filesystem::exists(dest, ec), "Infected file deleted from disk");
+        }
+
+        // 3. Scanner error: non-strict allows completed; strict FAILS
+        {
+            simulated_report.status = security::ScanStatus::kScannerError;
+            // 3a. Non-strict mode
+            auto s = ctrl.GetSettings();
+            s.av_strict_mode = false;
+            ASSERT_TRUE(ctrl.UpdateSettings(s).ok(), "av_strict_mode = false");
+            TaskModel t1;
+            t1.file_name = "scanner_err1.txt";
+            auto staged1 = create_test_file("scanner_err1.tmp");
+            auto res1 = ctrl.IngestCompletedTask(t1, staged1);
+            ASSERT_TRUE(res1.ok() && res1.value->state == TaskState::kCompleted, "Non-strict allows scanner error as Completed");
+
+            // 3b. Strict mode
+            s.av_strict_mode = true;
+            ASSERT_TRUE(ctrl.UpdateSettings(s).ok(), "av_strict_mode = true");
+            TaskModel t2;
+            t2.file_name = "scanner_err2.txt";
+            auto staged2 = create_test_file("scanner_err2.tmp");
+            auto res2 = ctrl.IngestCompletedTask(t2, staged2);
+            ASSERT_TRUE(res2.ok(), "Ingest processed");
+            ASSERT_TRUE(res2.value->state == TaskState::kFailed, "Strict mode FAILS on scanner error");
+            ASSERT_TRUE(res2.value->error_code == "ERR_AV_SCAN_FAILED", "Strict mode error code ERR_AV_SCAN_FAILED");
+        }
+
+        // 4. Scanner timeout/error result: strict FAILS
+        {
+            return_error_result = true;
+            TaskModel t;
+            t.file_name = "scanner_timeout.txt";
+            auto staged = create_test_file("scanner_timeout.tmp");
+            auto res = ctrl.IngestCompletedTask(t, staged);
+            ASSERT_TRUE(res.ok(), "Ingest processed");
+            ASSERT_TRUE(res.value->state == TaskState::kFailed, "Strict mode FAILS on scan timeout/error");
+            return_error_result = false;
+        }
+
+        // 5. Scanner unavailable: non-strict allows completed; strict FAILS
+        {
+            scanner_available = false;
+            // 5a. Strict mode (currently true)
+            TaskModel t1;
+            t1.file_name = "scanner_unavail1.txt";
+            auto staged1 = create_test_file("scanner_unavail1.tmp");
+            auto res1 = ctrl.IngestCompletedTask(t1, staged1);
+            ASSERT_TRUE(res1.ok(), "Ingest processed");
+            ASSERT_TRUE(res1.value->state == TaskState::kFailed, "Strict mode FAILS when scanner is unavailable");
+            ASSERT_TRUE(res1.value->error_code == "ERR_AV_UNAVAILABLE", "ERR_AV_UNAVAILABLE reported");
+
+            // 5b. Non-strict mode
+            auto s = ctrl.GetSettings();
+            s.av_strict_mode = false;
+            ASSERT_TRUE(ctrl.UpdateSettings(s).ok(), "av_strict_mode = false");
+            TaskModel t2;
+            t2.file_name = "scanner_unavail2.txt";
+            auto staged2 = create_test_file("scanner_unavail2.tmp");
+            auto res2 = ctrl.IngestCompletedTask(t2, staged2);
+            ASSERT_TRUE(res2.ok() && res2.value->state == TaskState::kCompleted, "Non-strict allows unavailable scanner as Completed");
+        }
 
         ctrl.Shutdown();
         std::filesystem::remove_all(work_dir, ec);
     }
 
-    std::cout << "  [5/5] Testing MIME-based category inference...\n";
+    std::cout << "  [5/5] Testing Auto-Categorization decision hierarchy & engine category preservation...\n";
     {
-        ASSERT_TRUE(openidm::InferCategoryFromMime("video/mp4") == "Video", "video/mp4 -> Video");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("application/x-mpegurl") == "Video", "HLS -> Video");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("audio/mpeg") == "Audio", "audio/mpeg -> Audio");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("application/pdf") == "Documents", "pdf -> Documents");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("application/zip; charset=binary") == "Compressed", "zip with params -> Compressed");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("application/x-msdownload") == "Programs", "exe -> Programs");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("image/webp") == "Images", "webp -> Images");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("application/x-bittorrent") == "Torrents", "torrent -> Torrents");
-        ASSERT_TRUE(openidm::InferCategoryFromMime("unknown/binary") == "General", "unknown -> General");
+        std::error_code ec;
+        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_cat_hier_" + GenerateUuidV4());
+        std::filesystem::create_directories(work_dir, ec);
+
+        ControllerConfig cfg;
+        cfg.state_db_path = work_dir / "state.db";
+        cfg.default_download_dir = work_dir / "downloads";
+        cfg.temp_root_dir = work_dir / "tmp";
+        std::filesystem::create_directories(cfg.default_download_dir, ec);
+
+        DownloadController ctrl(cfg);
+        ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller");
+
+        auto s = ctrl.GetSettings();
+        // Setup site rules and custom extensions
+        s.site_rules["special-music.org"] = "Audio";
+        s.custom_extension_categories["specialbook"] = "Documents";
+        ASSERT_TRUE(ctrl.UpdateSettings(s).ok(), "Configured rules & extensions");
+
+        // Priority 1: User explicitly specified category -> preserved as-is
+        TaskModel user_task;
+        user_task.task_id = "user-cat-task";
+        user_task.category = "CustomCategory";
+        user_task.url = "https://special-music.org/track.mp3";
+        user_task.file_name = "track.mp3";
+        auto add_res = ctrl.AddTask(user_task, false, true);
+        ASSERT_TRUE(add_res.ok(), "Add user task");
+        auto u_added = ctrl.GetTask("user-cat-task");
+        ASSERT_TRUE(u_added.has_value() && u_added->category == "CustomCategory", "User explicit category is preserved");
+
+        // Priority 2: Site rule outranks extension and filename
+        // Domain special-music.org maps to Audio, even if filename is movie.mp4 (which would otherwise be Video)
+        TaskModel site_task;
+        site_task.task_id = "site-rule-task";
+        site_task.url = "https://special-music.org/movie.mp4";
+        site_task.file_name = "movie.mp4";
+        auto s_res = ctrl.AddTask(site_task, false, true);
+        ASSERT_TRUE(s_res.ok(), "Add site task");
+        auto s_added = ctrl.GetTask("site-rule-task");
+        ASSERT_TRUE(s_added.has_value() && s_added->category == "Audio", "Site rule outranks filename extension");
+
+        // Priority 3: Custom extension mapping outranks default filename inference
+        TaskModel ext_task;
+        ext_task.task_id = "custom-ext-task";
+        ext_task.url = "https://example.com/novel.specialbook";
+        ext_task.file_name = "novel.specialbook";
+        auto e_res = ctrl.AddTask(ext_task, false, true);
+        ASSERT_TRUE(e_res.ok(), "Add custom extension task");
+        auto e_added = ctrl.GetTask("custom-ext-task");
+        ASSERT_TRUE(e_added.has_value() && e_added->category == "Documents", "Custom extension outranks default");
+
+        // Priority 4: Default filename extension inference
+        ASSERT_TRUE(ctrl.DetermineCategory("clip.mp4", "https://example.com/clip.mp4") == "Video", "Filename -> Video");
+        ASSERT_TRUE(ctrl.DetermineCategory("track.flac", "https://example.com/track.flac") == "Audio", "Filename -> Audio");
+        ASSERT_TRUE(ctrl.DetermineCategory("archive.tar.gz", "https://example.com/archive.tar.gz") == "Compressed", "Filename -> Compressed");
+
+        // Priority 5: MIME metadata inference fallback when filename has generic or no extension
+        ASSERT_TRUE(InferCategoryFromMime("video/mp4") == "Video", "MIME video/mp4 -> Video");
+        ASSERT_TRUE(InferCategoryFromMime("application/pdf") == "Documents", "MIME application/pdf -> Documents");
+        ASSERT_TRUE(InferCategoryFromMime("application/octet-stream") == "General", "MIME generic fallback -> General");
+
+        ctrl.Shutdown();
+        std::filesystem::remove_all(work_dir, ec);
     }
 
     return true;

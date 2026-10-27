@@ -13,6 +13,7 @@ import json
 import os
 import platform
 import shutil
+import socket
 import socketserver
 import subprocess
 import sys
@@ -50,14 +51,36 @@ class ControlledSmokeServer(http.server.BaseHTTPRequestHandler):
             rng = self.headers.get("Range", "")
             if rng and rng != "bytes=0-0" and ControlledSmokeServer.flaky_attempts == 0:
                 ControlledSmokeServer.flaky_attempts += 1
+                total = len(PAYLOAD_FLAKY_2MB)
+                start, end = 0, total - 1
+                if rng.startswith("bytes="):
+                    spec = rng.split("=", 1)[1].strip()
+                    parts = spec.split("-", 1)
+                    if parts[0]:
+                        start = int(parts[0])
+                    if len(parts) > 1 and parts[1]:
+                        end = min(int(parts[1]), total - 1)
+                span = end - start + 1
                 self.send_response(206)
                 self.send_header("Content-Type", "application/octet-stream")
                 self.send_header("Accept-Ranges", "bytes")
-                self.send_header("Content-Range", f"bytes 0-{len(PAYLOAD_FLAKY_2MB)-1}/{len(PAYLOAD_FLAKY_2MB)}")
-                self.send_header("Content-Length", str(len(PAYLOAD_FLAKY_2MB)))
+                self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+                self.send_header("Content-Length", str(span))
+                self.send_header("Content-Disposition", 'attachment; filename="flaky_2mb.bin"')
                 self.end_headers()
                 # Write partial chunk and abruptly terminate connection
-                self.wfile.write(PAYLOAD_FLAKY_2MB[:32768])
+                partial_size = min(32768, max(1, span // 2))
+                try:
+                    self.wfile.write(PAYLOAD_FLAKY_2MB[start : start + partial_size])
+                    self.wfile.flush()
+                except Exception:
+                    pass
+                self.close_connection = True
+                try:
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                    self.connection.close()
+                except Exception:
+                    pass
                 return
             self._serve_buffer(PAYLOAD_FLAKY_2MB, support_range=True, filename="flaky_2mb.bin")
         elif path == "/files/missing.bin":
@@ -313,10 +336,14 @@ def main():
         print("  [OK] 404 Not Found rejected with error return code as expected.")
 
         # Test flaky endpoint with auto-resume / retry
-        flaky_res = subprocess.run(
-            [str(flux_exe), "--db", str(smoke_db), "--out", str(smoke_dl), "--allow-loopback", "--download", f"{base_url}/files/flaky_2mb.bin"],
-            capture_output=True, text=True, env=env, check=True
-        )
+        try:
+            flaky_res = subprocess.run(
+                [str(flux_exe), "--db", str(smoke_db), "--out", str(smoke_dl), "--allow-loopback", "--download", f"{base_url}/files/flaky_2mb.bin"],
+                capture_output=True, text=True, env=env, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR running flaky download:\nSTDOUT:\n{e.stdout}\nSTDERR:\n{e.stderr}", file=sys.stderr)
+            raise
         flaky_cand = [smoke_dl / "flaky_2mb.bin", smoke_dl / "General" / "flaky_2mb.bin"]
         flaky_found = next((c for c in flaky_cand if c.is_file()), None)
         assert flaky_found is not None, "Flaky resumed file missing!"

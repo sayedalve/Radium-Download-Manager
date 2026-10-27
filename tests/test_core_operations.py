@@ -20,6 +20,7 @@ import os
 import platform
 import shutil
 import socketserver
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -112,15 +113,37 @@ class ControlledTestHttpServer(http.server.BaseHTTPRequestHandler):
         elif path == "/files/reset_drop.bin":
             if getattr(ControlledTestHttpServer, "_hit_reset", False) is False:
                 ControlledTestHttpServer._hit_reset = True
+                total = len(PAYLOAD_MEDIUM)
+                start, end = 0, total - 1
+                rng = self.headers.get("Range", "")
+                if rng.startswith("bytes="):
+                    spec = rng.split("=", 1)[1].strip()
+                    parts = spec.split("-", 1)
+                    if parts[0]:
+                        start = int(parts[0])
+                    if len(parts) > 1 and parts[1]:
+                        end = min(int(parts[1]), total - 1)
+                span = end - start + 1
                 self.send_response(206)
                 self.send_header("Content-Type", "application/octet-stream")
                 self.send_header("Accept-Ranges", "bytes")
-                self.send_header("Content-Range", f"bytes 0-{len(PAYLOAD_MEDIUM)-1}/{len(PAYLOAD_MEDIUM)}")
-                self.send_header("Content-Length", str(len(PAYLOAD_MEDIUM)))
+                self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+                self.send_header("Content-Length", str(span))
+                self.send_header("Content-Disposition", 'attachment; filename="reset_drop.bin"')
                 self.end_headers()
-                self.wfile.write(PAYLOAD_MEDIUM[:32768])
+                partial_size = min(32768, max(1, span // 2))
+                try:
+                    self.wfile.write(PAYLOAD_MEDIUM[start : start + partial_size])
+                    self.wfile.flush()
+                except Exception:
+                    pass
                 # Premature abort to trigger connection reset
                 self.close_connection = True
+                try:
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                    self.connection.close()
+                except Exception:
+                    pass
                 return
             else:
                 self._serve_buffer(PAYLOAD_MEDIUM, filename="reset_drop.bin", support_range=True)

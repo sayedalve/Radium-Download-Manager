@@ -45,6 +45,9 @@ struct ControllerConfig {
     int stall_timeout_ms{3000};
     uint64_t min_split_bytes{131072};
     torrent::TorrentMetadataSelectionCallback torrent_metadata_selection_callback;
+    std::function<std::string()> local_time_override;
+    std::function<Result<security::ScanReport>(const std::filesystem::path&)> av_scan_override;
+    std::function<bool()> av_available_override;
 };
 
 class DownloadController {
