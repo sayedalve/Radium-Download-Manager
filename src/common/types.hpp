@@ -226,6 +226,7 @@ struct AppSettings {
     bool start_minimized{false};
     bool reduced_motion{false};
     bool show_completion_notification{true};
+    bool av_strict_mode{false};                       // Fail task on scanner error/timeout rather than marking completed
 
     // Proxy & Authentication (Phase 2 Feature B)
     std::string proxy_mode{"system"};                 // "direct", "system", "manual"
@@ -264,6 +265,7 @@ struct AppSettings {
                start_minimized == other.start_minimized &&
                reduced_motion == other.reduced_motion &&
                show_completion_notification == other.show_completion_notification &&
+               av_strict_mode == other.av_strict_mode &&
                proxy_mode == other.proxy_mode &&
                proxy_server == other.proxy_server &&
                proxy_bypass == other.proxy_bypass &&
@@ -289,6 +291,7 @@ TaskState TaskStateFromString(const std::string& s);
 std::string ConflictPolicyToString(ConflictPolicy p);
 ConflictPolicy ConflictPolicyFromString(const std::string& s);
 std::string InferCategoryFromFilename(const std::string& filename);
+std::string InferCategoryFromMime(const std::string& mime_type);
 int64_t NowEpochMs();
 std::string GenerateUuidV4();
 

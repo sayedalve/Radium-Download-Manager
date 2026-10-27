@@ -519,6 +519,12 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
     }
     task.file_name = PathSanitizer::SanitizeFileName(task.file_name);
     task.category = InferCategoryFromFilename(task.file_name);
+    if ((task.category.empty() || task.category == "General") && !probe_meta.content_type.empty()) {
+        std::string mime_cat = InferCategoryFromMime(probe_meta.content_type);
+        if (mime_cat != "General") {
+            task.category = mime_cat;
+        }
+    }
 
     // Pre-flight disk space check (BUG-009 fix)
     uint64_t remaining_to_download = (total_bytes > task.downloaded_bytes) ? (total_bytes - task.downloaded_bytes) : total_bytes;

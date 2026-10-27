@@ -248,7 +248,8 @@ Result<std::vector<GrabbedItem>> SiteGrabber::Crawl(
 
         if (!res.ok()) continue;
 
-        auto extracted_urls = ExtractUrlsFromHtml(html_body, current.url);
+        std::string effective_base_url = (res.ok() && !res.value->final_url.empty()) ? res.value->final_url : current.url;
+        auto extracted_urls = ExtractUrlsFromHtml(html_body, effective_base_url);
         for (const auto& link : extracted_urls) {
             if (cancel_requested.load()) break;
 

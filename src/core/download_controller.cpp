@@ -184,7 +184,27 @@ Result<void> DownloadController::Initialize() {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (loaded.ok()) {
+            auto now_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            std::tm local_tm{};
+#ifdef _WIN32
+            localtime_s(&local_tm, &now_t);
+#else
+            localtime_r(&now_t, &local_tm);
+#endif
+            char time_buf[16] = {0};
+            std::strftime(time_buf, sizeof(time_buf), "%H:%M", &local_tm);
+            std::string startup_hh_mm(time_buf);
             for (auto& t : *loaded.value) {
+                if (t.scheduled && !t.schedule_stop_time_local.empty()) {
+                    bool in_window = IsTimeInScheduledWindow(startup_hh_mm, t.schedule_time_local, t.schedule_stop_time_local);
+                    if (!in_window) {
+                        t.scheduled = false;
+                        t.status_detail = "Schedule Expired (Window elapsed while offline)";
+                        t.schedule_time_local.clear();
+                        t.schedule_stop_time_local.clear();
+                        m_store.UpsertTask(t);
+                    }
+                }
                 m_tasks[t.task_id] = std::move(t);
             }
         }
@@ -231,6 +251,7 @@ void DownloadController::LoadPersistedSettingsLocked() {
         m_settings.start_minimized = val["startMinimized"].as_bool(false);
         m_settings.reduced_motion = val["reducedMotion"].as_bool(false);
         m_settings.show_completion_notification = val["showCompletionNotification"].as_bool(true);
+        m_settings.av_strict_mode = val["avStrictMode"].as_bool(false);
 
         m_settings.proxy_mode = val["proxyMode"].as_string("direct");
         m_settings.proxy_server = val["proxyServer"].as_string("");
@@ -293,6 +314,7 @@ Result<void> DownloadController::SaveSettingsLocked() {
     obj["startMinimized"] = m_settings.start_minimized;
     obj["reducedMotion"] = m_settings.reduced_motion;
     obj["showCompletionNotification"] = m_settings.show_completion_notification;
+    obj["avStrictMode"] = m_settings.av_strict_mode;
 
     obj["proxyMode"] = m_settings.proxy_mode;
     obj["proxyServer"] = m_settings.proxy_server;
@@ -648,12 +670,26 @@ Result<TaskModel> DownloadController::IngestCompletedTask(TaskModel task, const 
                 } else if (scan_res.value->status == security::ScanStatus::kClean) {
                     task.status_detail = "Completed (Antivirus Clean)";
                 } else if (scan_res.value->status == security::ScanStatus::kScannerError) {
+                    if (m_settings.av_strict_mode) {
+                        task.state = TaskState::kFailed;
+                        task.error_code = "ERR_AV_SCAN_FAILED";
+                        task.error_message = "Antivirus scanner failed in strict mode";
+                        task.status_detail = "Failed: Antivirus scanner error (Strict mode)";
+                    } else {
                     task.status_detail = "Completed (Antivirus Scan Failed)";
+                    }
                 } else {
                     task.status_detail = "Completed (Antivirus Skipped)";
                 }
             } else {
+                if (m_settings.av_strict_mode) {
+                    task.state = TaskState::kFailed;
+                    task.error_code = "ERR_AV_SCAN_FAILED";
+                    task.error_message = "Antivirus scanner error: " + scan_res.error->message;
+                    task.status_detail = "Failed: Antivirus scan error (Strict mode)";
+                } else {
                 task.status_detail = "Completed (Antivirus Scan Error: " + scan_res.error->message + ")";
+                }
             }
         }
     } else {
@@ -1437,15 +1473,27 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
                         local_task.state = TaskState::kCompleted;
                         local_task.status_detail = "Completed (Antivirus Clean)";
                     } else if (scan_res.value->status == security::ScanStatus::kScannerError) {
-                        local_task.state = TaskState::kCompleted;
+                    if (m_settings.av_strict_mode) {
+                        local_task.state = TaskState::kFailed;
+                        local_task.error_code = "ERR_AV_SCAN_FAILED";
+                        local_task.error_message = "Antivirus scanner failed in strict mode";
+                        local_task.status_detail = "Failed: Antivirus scanner error (Strict mode)";
+                    } else {
                         local_task.status_detail = "Completed (Antivirus Scan Failed)";
+                    }
                     } else {
                         local_task.state = TaskState::kCompleted;
                         local_task.status_detail = "Completed (Antivirus Skipped)";
                     }
                 } else {
-                    local_task.state = TaskState::kCompleted;
+                if (m_settings.av_strict_mode) {
+                    local_task.state = TaskState::kFailed;
+                    local_task.error_code = "ERR_AV_SCAN_FAILED";
+                    local_task.error_message = "Antivirus scanner error: " + scan_res.error->message;
+                    local_task.status_detail = "Failed: Antivirus scan error (Strict mode)";
+                } else {
                     local_task.status_detail = "Completed (Antivirus Scan Error: " + scan_res.error->message + ")";
+                }
                 }
             }
         } else {

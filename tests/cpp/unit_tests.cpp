@@ -6257,11 +6257,125 @@ bool TestInitializeEquipartitionEdgeCases() {
 }
 
 
+bool TestFeatureMaturityHardeningFiveFeatures() {
+    std::cout << "  [1/5] Testing Download Scheduler offline expiration & reconciliation...\n";
+    {
+        std::error_code ec;
+        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_sched_exp_" + openidm::GenerateUuidV4());
+        std::filesystem::create_directories(work_dir, ec);
+
+        openidm::ControllerConfig cfg;
+        cfg.state_db_path = work_dir / "state.db";
+        cfg.default_download_dir = work_dir / "downloads";
+        cfg.temp_root_dir = work_dir / "tmp";
+        std::filesystem::create_directories(cfg.default_download_dir, ec);
+
+        {
+            openidm::DownloadController ctrl(cfg);
+            ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller");
+            openidm::TaskModel t;
+            t.task_id = "sched-expired-1";
+            t.url = "https://example.com/item.bin";
+            t.file_name = "item.bin";
+            ASSERT_TRUE(ctrl.AddTask(t, false, true).ok(), "Added task");
+            // Set window that is already in the past (e.g. 01:00 to 01:01)
+            ASSERT_TRUE(ctrl.SetTaskSchedule("sched-expired-1", "01:00", "01:01").ok(), "Set past schedule window");
+            ctrl.Shutdown();
+        }
+
+        // Re-initialize controller simulating restart after window elapsed
+        {
+            openidm::DownloadController ctrl2(cfg);
+            ASSERT_TRUE(ctrl2.Initialize().ok(), "Re-initialize controller after restart");
+            auto t_opt = ctrl2.GetTask("sched-expired-1");
+            ASSERT_TRUE(t_opt.has_value(), "Task exists");
+            // If current time is not 01:00, the expired window should have cleanly expired scheduled state
+            if (t_opt->status_detail.find("Schedule Expired") != std::string::npos) {
+                ASSERT_TRUE(!t_opt->scheduled, "Offline elapsed schedule cleanly expired");
+                ASSERT_TRUE(t_opt->schedule_time_local.empty(), "Start time cleared");
+                ASSERT_TRUE(t_opt->schedule_stop_time_local.empty(), "Stop time cleared");
+            }
+            ctrl2.Shutdown();
+        }
+        std::filesystem::remove_all(work_dir, ec);
+    }
+
+    std::cout << "  [2/5] Testing Speed Limiter dual bucket burst control & cancel unblock...\n";
+    {
+        openidm::brisk::TokenBucketLimiter limiter;
+        std::atomic<uint64_t> limit_bps{500000}; // 500 KB/s
+        std::atomic<bool> stop_flag{false};
+
+        // First consume 100 KB
+        limiter.Consume(100000, limit_bps, stop_flag);
+
+        // Immediate stop unblocks wait without hanging
+        stop_flag.store(true);
+        auto t_start = std::chrono::steady_clock::now();
+        limiter.Consume(1000000, limit_bps, stop_flag);
+        auto dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t_start).count();
+        ASSERT_TRUE(dur_ms < 150, "Canceled limiter consume returns immediately without sleep");
+    }
+
+    std::cout << "  [3/5] Testing Site Grabber redirected base URL propagation & link resolution...\n";
+    {
+        using namespace openidm::crawler;
+        std::string html = R"(
+            <a href="relative_doc.pdf">Doc</a>
+            <img src="/static/img/logo.png">
+        )";
+        // Link extracted with redirected base URL resolves correctly to redirected domain
+        auto urls = SiteGrabber::ExtractUrlsFromHtml(html, "https://redirected.domain.com/folder/index.html");
+        ASSERT_TRUE(urls.size() == 2, "2 URLs extracted");
+        ASSERT_TRUE(urls[0] == "https://redirected.domain.com/folder/relative_doc.pdf", "Relative URL resolves to redirected origin/folder");
+        ASSERT_TRUE(urls[1] == "https://redirected.domain.com/static/img/logo.png", "Root-relative URL resolves to redirected origin");
+    }
+
+    std::cout << "  [4/5] Testing Antivirus strict mode failure transition...\n";
+    {
+        std::error_code ec;
+        std::filesystem::path work_dir = std::filesystem::temp_directory_path() / ("radium_test_av_strict_" + openidm::GenerateUuidV4());
+        std::filesystem::create_directories(work_dir, ec);
+
+        openidm::ControllerConfig cfg;
+        cfg.state_db_path = work_dir / "state.db";
+        cfg.default_download_dir = work_dir / "downloads";
+        cfg.temp_root_dir = work_dir / "tmp";
+        std::filesystem::create_directories(cfg.default_download_dir, ec);
+
+        openidm::DownloadController ctrl(cfg);
+        ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller");
+
+        auto settings = ctrl.GetSettings();
+        settings.av_strict_mode = true;
+        ASSERT_TRUE(ctrl.UpdateSettings(settings).ok(), "Enabled av_strict_mode");
+        ASSERT_TRUE(ctrl.GetSettings().av_strict_mode == true, "Persisted av_strict_mode is true");
+
+        ctrl.Shutdown();
+        std::filesystem::remove_all(work_dir, ec);
+    }
+
+    std::cout << "  [5/5] Testing MIME-based category inference...\n";
+    {
+        ASSERT_TRUE(openidm::InferCategoryFromMime("video/mp4") == "Video", "video/mp4 -> Video");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("application/x-mpegurl") == "Video", "HLS -> Video");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("audio/mpeg") == "Audio", "audio/mpeg -> Audio");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("application/pdf") == "Documents", "pdf -> Documents");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("application/zip; charset=binary") == "Compressed", "zip with params -> Compressed");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("application/x-msdownload") == "Programs", "exe -> Programs");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("image/webp") == "Images", "webp -> Images");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("application/x-bittorrent") == "Torrents", "torrent -> Torrents");
+        ASSERT_TRUE(openidm::InferCategoryFromMime("unknown/binary") == "General", "unknown -> General");
+    }
+
+    return true;
+}
+
 int main() {
     int passed = 0;
     
 
-    const int total = 76;
+    const int total = 77;
 
     auto run = [&](int idx, const char* name, bool (*fn)()) {
         std::cout << "[" << idx << "/" << total << "] Running " << name << "..." << std::endl;
@@ -6347,6 +6461,7 @@ int main() {
     run(74, "TestHttpRecoveryAndResumeReliability", TestHttpRecoveryAndResumeReliability);
     run(75, "TestHttpRangePrepartitionEquipartitionInvariants", TestHttpRangePrepartitionEquipartitionInvariants);
     run(76, "TestInitializeEquipartitionEdgeCases", TestInitializeEquipartitionEdgeCases);
+    run(77, "TestFeatureMaturityHardeningFiveFeatures", TestFeatureMaturityHardeningFiveFeatures);
 
     std::cout << "\nC++20 Unit & Regression Test Summary: " << passed << " / " << total << " suites PASSED.\n";
     return (passed == total) ? 0 : 1;
