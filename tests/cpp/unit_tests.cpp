@@ -6552,7 +6552,7 @@ bool TestFeatureMaturityHardeningFiveFeatures() {
         auto s = ctrl.GetSettings();
         // Setup site rules and custom extensions
         s.site_rules["special-music.org"] = "Audio";
-        s.custom_extension_categories[".specialbook"] = "Documents";
+        s.custom_extension_categories["specialbook"] = "Documents";
         ASSERT_TRUE(ctrl.UpdateSettings(s).ok(), "Configured rules & extensions");
 
         // Priority 1: User explicitly specified category -> preserved as-is
@@ -6569,18 +6569,22 @@ bool TestFeatureMaturityHardeningFiveFeatures() {
         // Priority 2: Site rule outranks extension and filename
         // Domain special-music.org maps to Audio, even if filename is movie.mp4 (which would otherwise be Video)
         TaskModel site_task;
+        site_task.task_id = "site-rule-task";
         site_task.url = "https://special-music.org/movie.mp4";
         site_task.file_name = "movie.mp4";
-        ASSERT_TRUE(ctrl.AddTask(site_task, false, true).ok(), "Add site task");
-        auto s_added = ctrl.GetTask(site_task.task_id);
+        auto s_res = ctrl.AddTask(site_task, false, true);
+        ASSERT_TRUE(s_res.ok(), "Add site task");
+        auto s_added = ctrl.GetTask("site-rule-task");
         ASSERT_TRUE(s_added.has_value() && s_added->category == "Audio", "Site rule outranks filename extension");
 
         // Priority 3: Custom extension mapping outranks default filename inference
         TaskModel ext_task;
+        ext_task.task_id = "custom-ext-task";
         ext_task.url = "https://example.com/novel.specialbook";
         ext_task.file_name = "novel.specialbook";
-        ASSERT_TRUE(ctrl.AddTask(ext_task, false, true).ok(), "Add custom extension task");
-        auto e_added = ctrl.GetTask(ext_task.task_id);
+        auto e_res = ctrl.AddTask(ext_task, false, true);
+        ASSERT_TRUE(e_res.ok(), "Add custom extension task");
+        auto e_added = ctrl.GetTask("custom-ext-task");
         ASSERT_TRUE(e_added.has_value() && e_added->category == "Documents", "Custom extension outranks default");
 
         // Priority 4: Default filename extension inference
