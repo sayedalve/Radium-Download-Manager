@@ -137,6 +137,14 @@ Cryptographic checksums for all release binaries are available in [SHA256SUMS.tx
   </tr>
 </table>
 
+### Core Subsystem Hardening
+
+- **Download Scheduling:** Deterministic local start/stop time windows, retry backoff with error classification, offline elapsed window reconciliation on restart, and post-queue actions (`SLEEP`/`SHUTDOWN`).
+- **Speed Limiting:** In-process dual token-bucket rate limiting enforcing aggregate bandwidth caps across all concurrent connection workers for HTTP, FTP, and BitTorrent without thread starvation.
+- **Site Grabber:** Bounded BFS crawler with depth (1–5) and page caps, HTML/CSS link extraction, redirect base URL propagation, and strict SSRF defenses against private/loopback/multicast destinations.
+- **Antivirus Scanning:** Post-download Windows Defender (`MpCmdRun.exe`) validation with explicit threat detection, exit code 2 stdout discrimination, and strict mode (`av_strict_mode`) to fail unverified files on scanner error.
+- **Automatic Categorization:** Deterministic rule precedence (Site Rules > Custom Extensions > Standard Filename > MIME Content-Type > General) with sanitized directory path routing.
+
 <br>
 
 ## Performance Benchmarks

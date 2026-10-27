@@ -159,6 +159,40 @@ std::string InferCategoryFromFilename(const std::string& filename) {
     return "General";
 }
 
+std::string InferCategoryFromMime(const std::string& mime_type) {
+    if (mime_type.empty()) return "General";
+    std::string m = mime_type;
+    for (char& c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    auto semi = m.find(';');
+    if (semi != std::string::npos) m = m.substr(0, semi);
+    while (!m.empty() && (m.back() == ' ' || m.back() == '\t')) m.pop_back();
+
+    if (m.rfind("video/", 0) == 0 || m == "application/x-mpegurl" || m == "application/vnd.apple.mpegurl") return "Video";
+    if (m.rfind("audio/", 0) == 0) return "Audio";
+    if (m.rfind("image/", 0) == 0) return "Images";
+    if (m == "application/pdf" || m == "application/msword" ||
+        m == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        m == "application/vnd.ms-excel" ||
+        m == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        m == "application/vnd.ms-powerpoint" ||
+        m == "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+        m == "application/epub+zip" || m == "text/plain" || m == "text/markdown" || m == "text/csv") {
+        return "Documents";
+    }
+    if (m == "application/zip" || m == "application/x-tar" || m == "application/x-rar-compressed" ||
+        m == "application/x-7z-compressed" || m == "application/gzip" || m == "application/x-bzip2" ||
+        m == "application/x-xz" || m == "application/zstd") {
+        return "Compressed";
+    }
+    if (m == "application/x-msdownload" || m == "application/vnd.microsoft.portable-executable" ||
+        m == "application/x-apple-diskimage" || m == "application/vnd.android.package-archive" ||
+        m == "application/x-iso9660-image" || m == "application/x-msi") {
+        return "Programs";
+    }
+    if (m == "application/x-bittorrent") return "Torrents";
+    return "General";
+}
+
 int64_t NowEpochMs() {
     using namespace std::chrono;
     return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
