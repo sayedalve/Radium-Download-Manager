@@ -49,6 +49,9 @@ public:
     // Initialize either from fresh start (1 initial segment [0, total_bytes-1]) or saved resume segments
     void Initialize(const std::vector<Segment>& existing_segments = {});
 
+    // Pre-calculates balanced contiguous, non-overlapping partitions across initial_connections before workers launch
+    void InitializeEquipartition(uint32_t initial_connections);
+
     // Validates that existing_segments forms a complete, non-overlapping partition of [0, total_bytes - 1]
     // with valid cursors, no gaps, no overlaps, and consistent completion flags (FDM-002, TG-01).
     static bool ValidateSegmentPartition(const std::vector<Segment>& segments, uint64_t total_bytes);

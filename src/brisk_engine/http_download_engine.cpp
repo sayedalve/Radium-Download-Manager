@@ -291,19 +291,34 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
             ",\"outcome\":\"" + (probe_res.ok() ? std::string("complete") : std::string("failed")) + "\"}");
     }
 
-    // FDM-020: If probe is rate-limited (HTTP 429), back off using Retry-After
+    // FDM-020: If probe is rate-limited (HTTP 429) or overloaded (HTTP 503), back off using Retry-After
     // and retry a bounded number of times. Servers may apply per-IP rate
-    // limits to all requests, including the initial range-capability probe
-    // (bytes=0-0). Keep this finite so a permanently rate-limited endpoint
-    // reaches the controller's normal retry/error path.
+    // limits or transient backpressure to all requests, including the initial range-capability probe.
     constexpr int kMaxProbeAttempts = 3;
     for (int probe_attempt = 1;
          probe_attempt < kMaxProbeAttempts &&
-         (probe_meta.status_code == 429 ||
-          (!probe_res.ok() && probe_res.error && probe_res.error->code == "ERR_HTTP_429_RATE_LIMITED"));
+         (probe_meta.status_code == 429 || probe_meta.status_code == 503 ||
+          (!probe_res.ok() && probe_res.error &&
+           (probe_res.error->code == "ERR_HTTP_429_RATE_LIMITED" || probe_res.error->code == "ERR_HTTP_5XX_TRANSIENT")));
          ++probe_attempt) {
-        int wait_sec = (probe_meta.retry_after_sec > 0) ? std::min(probe_meta.retry_after_sec, 30) : 2;
-        OPENIDM_LOG_WARN("HttpEngine", "Task " + task.task_id + ": Probe received HTTP 429; waiting "
+        int retry_sec = probe_meta.retry_after_sec;
+        if (retry_sec > 30) {
+            // Server requested a longer wait than is suitable for active probe blocking.
+            // Transition task to user_action_resumable paused state so it can be resumed safely without hammering.
+            OPENIDM_LOG_WARN("HttpEngine", "Task " + task.task_id + ": Probe received HTTP " +
+                std::to_string(probe_meta.status_code) + " with Retry-After: " + std::to_string(retry_sec) +
+                "s > 30s probe cap; pausing task for deferred resumption");
+            task.state = TaskState::kPaused;
+            task.pause_reason = PauseReason::kError;
+            task.error_code = (probe_meta.status_code == 429) ? "ERR_HTTP_429_RATE_LIMITED" : "ERR_HTTP_503";
+            task.error_message = "Server requested wait of " + std::to_string(retry_sec) + "s (HTTP " + std::to_string(probe_meta.status_code) + ")";
+            task.status_detail = task.error_message;
+            return Result<std::filesystem::path>::Err(task.error_code, task.error_message, true, true);
+        }
+
+        int wait_sec = (retry_sec > 0) ? retry_sec : (probe_attempt * 2);
+        OPENIDM_LOG_WARN("HttpEngine", "Task " + task.task_id + ": Probe received HTTP " +
+                             std::to_string(probe_meta.status_code) + "; waiting full "
                              + std::to_string(wait_sec) + "s then retrying probe (attempt "
                              + std::to_string(probe_attempt + 1) + "/" + std::to_string(kMaxProbeAttempts) + ")...");
         for (int slept = 0; slept < wait_sec * 1000; slept += 50) {
@@ -330,25 +345,34 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         }
     }
 
-    // FDM-017: If server returned 416 Range Not Satisfiable during range probe (common for 0-byte files), retry un-ranged GET
+    // If server returned 416 Range Not Satisfiable during range probe:
+    // RFC 9110 Section 14.4: Content-Range: bytes */0 indicates a verified empty resource.
     if (probe_meta.status_code == 416) {
-        probe_cancel.store(false);
-        auto unrange_res = HttpClient::PerformGet(
-            task.url,
-            req_headers,
-            std::nullopt,
-            std::nullopt,
-            m_cfg.stall_timeout_ms,
-            m_cfg.allow_loopback_redirect,
-            probe_cancel,
-            [&](const HttpResponseMeta& meta) -> HeaderAction {
-                probe_meta = meta;
-                return HeaderAction::kStopSuccess;
-            },
-            nullptr,
-            m_cfg.net_opts);
-        if (!unrange_res.ok()) {
-            probe_res = unrange_res;
+        if (probe_meta.is_unsatisfied_range && probe_meta.has_range_total && probe_meta.range_total == 0) {
+            OPENIDM_LOG_INFO("HttpEngine", "Task " + task.task_id + ": Probe received 416 with bytes */0 (verified empty resource)");
+            probe_meta.status_code = 200;
+            probe_meta.content_length = 0;
+            probe_meta.has_content_length = true;
+        } else {
+            // Unexpected 416 or unknown length: attempt un-ranged GET to verify actual resource state
+            probe_cancel.store(false);
+            auto unrange_res = HttpClient::PerformGet(
+                task.url,
+                req_headers,
+                std::nullopt,
+                std::nullopt,
+                m_cfg.stall_timeout_ms,
+                m_cfg.allow_loopback_redirect,
+                probe_cancel,
+                [&](const HttpResponseMeta& meta) -> HeaderAction {
+                    probe_meta = meta;
+                    return HeaderAction::kStopSuccess;
+                },
+                nullptr,
+                m_cfg.net_opts);
+            if (!unrange_res.ok()) {
+                probe_res = unrange_res;
+            }
         }
     }
 
@@ -397,9 +421,10 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         total_bytes = probe_meta.content_length;
     }
 
-    // Secondary Range capability probe if server answered 200 OK with Accept-Ranges: bytes and Content-Length > 128 KiB
-    if (!range_supported && probe_meta.status_code == 200 && probe_meta.accept_ranges_bytes && total_bytes > m_cfg.min_split_bytes) {
-        OPENIDM_LOG_INFO("HttpEngine", "Probe received 200 OK with Accept-Ranges: bytes; performing secondary range verification probe...");
+    // Secondary Range capability probe: if server answered 200 OK (and didn't explicitly forbid ranges via Accept-Ranges: none)
+    // for files > min_split_bytes, safely verify byte range support with a nonzero probe.
+    if (!range_supported && probe_meta.status_code == 200 && !probe_meta.accept_ranges_none && total_bytes > m_cfg.min_split_bytes) {
+        OPENIDM_LOG_INFO("HttpEngine", "Probe received 200 OK; performing secondary range verification probe to test Range capability...");
         HttpResponseMeta sec_meta;
         std::atomic<bool> sec_cancel{false};
         uint64_t test_start = total_bytes / 2;
@@ -417,7 +442,8 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
             },
             nullptr,
             m_cfg.net_opts);
-        if (sec_res.ok() && sec_meta.status_code == 206 && sec_meta.is_partial_content) {
+        if (sec_res.ok() && sec_meta.status_code == 206 && sec_meta.is_partial_content &&
+            !sec_meta.content_range_malformed && sec_meta.range_start == test_start) {
             range_supported = true;
             OPENIDM_LOG_INFO("HttpEngine", "Secondary range probe confirmed HTTP 206 Range capability!");
         } else {
@@ -698,7 +724,12 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         // ---------------------------------------------------------------------
         uint32_t max_conns = std::clamp(task.max_connections, 1u, 32u);
         SegmentScheduler scheduler(total_bytes, max_conns, m_cfg.min_split_bytes);
-        scheduler.Initialize(is_resume ? task.segments : std::vector<Segment>{});
+        if (is_resume && !task.segments.empty()) {
+            scheduler.Initialize(task.segments);
+        } else {
+            // Pre-calculate balanced contiguous, non-overlapping partitions before data workers launch
+            scheduler.InitializeEquipartition(max_conns);
+        }
 
         std::atomic<bool> fatal_abort{false};
         std::atomic<bool> disable_splitting{false};
@@ -826,31 +857,64 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                                 return HeaderAction::kAbort;
                             }
                             if (meta.status_code == 416) {
-                                if (curr == 0 && (total_bytes == 0 || meta.range_total == 0)) {
+                                // Satisfied vs unsatisfied range: Only a confirmed empty file (total_bytes == 0 AND meta.is_unsatisfied_range && meta.range_total == 0)
+                                // at curr == 0 can be marked complete.
+                                if (curr == 0 && total_bytes == 0 && meta.is_unsatisfied_range && meta.has_range_total && meta.range_total == 0) {
                                     seg->completed.store(true);
                                     return HeaderAction::kStopSuccess;
                                 }
+                                // Unexpected 416 on nonempty file or missing/malformed range total must NEVER complete segment
                                 std::lock_guard<std::mutex> lk(err_mu);
-                                fatal_error = Error{"ERR_HTTP_RANGE_NOT_SATISFIABLE", "HTTP 416 Range Not Satisfiable", false, true};
+                                fatal_error = Error{"ERR_HTTP_RANGE_NOT_SATISFIABLE", "HTTP 416 Range Not Satisfiable on active segment", false, true};
                                 fatal_abort.store(true);
                                 return HeaderAction::kAbort;
                             }
-                            // Range satisfaction validation (aria2 HttpRequest::isRangeSatisfied).
-                            // Only classify as server_ignored_range if the server returned a 2xx response that
-                            // failed to honor the requested byte range (e.g. 200 OK instead of 206, or 206 with mismatched range_start).
-                            if (meta.status_code == 200 || (meta.status_code == 206 && (!meta.is_partial_content || meta.range_start != curr))) {
+                            // If server ignored the Range header and returned 200 OK
+                            if (meta.status_code == 200) {
                                 server_ignored_range = true;
                                 disable_splitting.store(true);
-                                OPENIDM_LOG_WARN("BriskEngine", "Server ignored Range header on worker (status " +
-                                    std::to_string(meta.status_code) + ", range_start " + std::to_string(meta.range_start) +
-                                    ", expected " + std::to_string(curr) + "); aborting secondary range stream");
+                                OPENIDM_LOG_WARN("BriskEngine", "Server returned 200 OK to range request on worker (expected " +
+                                    std::to_string(curr) + "-" + std::to_string(end) + "); aborting secondary stream");
                                 return HeaderAction::kAbort;
                             }
+                            // Validate HTTP 206 Partial Content requirements strictly before writing bytes
+                            if (meta.status_code != 206 || !meta.is_partial_content || meta.content_range_malformed) {
+                                std::lock_guard<std::mutex> lk(err_mu);
+                                fatal_error = Error{"ERR_HTTP_RANGE_PROTOCOL", "Server returned invalid or malformed Content-Range header", false, false};
+                                fatal_abort.store(true);
+                                return HeaderAction::kAbort;
+                            }
+                            // Check starting offset
+                            if (meta.range_start != curr) {
+                                server_ignored_range = true;
+                                disable_splitting.store(true);
+                                OPENIDM_LOG_WARN("BriskEngine", "Server range_start mismatch (got " +
+                                    std::to_string(meta.range_start) + ", expected " + std::to_string(curr) + "); aborting secondary stream");
+                                return HeaderAction::kAbort;
+                            }
+                            // Check ending offset and bounds
+                            if (meta.range_end < meta.range_start || (total_bytes > 0 && meta.range_end >= total_bytes)) {
+                                std::lock_guard<std::mutex> lk(err_mu);
+                                fatal_error = Error{"ERR_HTTP_RANGE_PROTOCOL", "Server returned impossible range bounds (end < start or end >= total)", false, false};
+                                fatal_abort.store(true);
+                                return HeaderAction::kAbort;
+                            }
+                            // Check total length consistency
                             if (total_bytes > 0 && meta.range_total > 0 && meta.range_total != total_bytes) {
                                 std::lock_guard<std::mutex> lk(err_mu);
                                 fatal_error = Error{"ERR_HTTP_VALIDATOR_MISMATCH",
                                     "Remote entity length changed mid-download (expected " +
                                     std::to_string(total_bytes) + ", got " + std::to_string(meta.range_total) + ")", false, false};
+                                fatal_abort.store(true);
+                                return HeaderAction::kAbort;
+                            }
+                            // Validate Content-Length matches byte range span
+                            uint64_t expected_span = meta.range_end - meta.range_start + 1;
+                            if (meta.has_content_length && meta.content_length != expected_span) {
+                                std::lock_guard<std::mutex> lk(err_mu);
+                                fatal_error = Error{"ERR_HTTP_RANGE_PROTOCOL",
+                                    "Content-Length (" + std::to_string(meta.content_length) +
+                                    ") does not match Content-Range span (" + std::to_string(expected_span) + ")", false, false};
                                 fatal_abort.store(true);
                                 return HeaderAction::kAbort;
                             }
@@ -1025,20 +1089,38 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                         uint32_t fail_streak = scheduler.IncrementConsecutiveFailures();
                         int retry_after_ms = 0;
 
-                        if (res.error->code == "ERR_HTTP_429_RATE_LIMITED") {
+                        bool is_server_overloaded = (res.error->code == "ERR_HTTP_429_RATE_LIMITED" ||
+                                                     (response_status == 503 && res.error->code == "ERR_HTTP_5XX_TRANSIENT"));
+
+                        if (is_server_overloaded) {
                             disable_splitting.store(true);
                             scheduler.ReduceConnectionsStepped();
+                            // If server requested a wait exceeding 15 seconds, don't keep active worker spinning.
+                            // Defer task cleanly to resumable state so all surviving workers exit and pause.
+                            if (captured_retry_after_sec > 15) {
+                                seg->active_worker.store(false);
+                                std::lock_guard<std::mutex> lk(err_mu);
+                                fatal_error = Error{
+                                    (response_status == 429) ? "ERR_HTTP_429_RATE_LIMITED" : "ERR_HTTP_503",
+                                    "Server requested Retry-After delay of " + std::to_string(captured_retry_after_sec) + "s",
+                                    true, true
+                                };
+                                fatal_abort.store(true);
+                                stop_worker();
+                                return;
+                            }
+
                             retry_after_ms = (captured_retry_after_sec > 0)
                                                 ? (captured_retry_after_sec * 1000)
                                                 : 2000;
-                            OPENIDM_LOG_WARN("BriskEngine", "HTTP 429 Rate Limited on segment #" +
+                            OPENIDM_LOG_WARN("BriskEngine", "Server overload/rate limit (HTTP " +
+                                std::to_string(response_status) + ") on segment #" +
                                 std::to_string(seg->segment_id) + "; reduced target concurrency to " +
                                 std::to_string(scheduler.GetMaxConnections()) + ", waiting " +
                                 std::to_string(retry_after_ms) + " ms");
 
-                            // Adaptive connection fallback: If active concurrency now exceeds
-                            // the reduced target connection limit, this extra worker should release
-                            // the incomplete segment and gracefully terminate rather than repeatedly colliding.
+                            // Adaptive connection fallback: If active concurrency exceeds reduced target,
+                            // release unfinished segment safely back to pool and terminate worker.
                             uint32_t current_max = scheduler.GetMaxConnections();
                             if (running_workers.load() > current_max && running_workers.load() > 1) {
                                 seg->active_worker.store(false);
@@ -1070,9 +1152,9 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                             }
                         }
 
-                        // For rate limiting (429), allow up to 8 retries per worker with backoff and reset streak so concurrent 429s don't prematurely abort
-                        int max_retries = (res.error->code == "ERR_HTTP_429_RATE_LIMITED") ? 8 : m_cfg.max_retries_per_worker;
-                        uint32_t max_streak = (res.error->code == "ERR_HTTP_429_RATE_LIMITED") ? 16 : 12;
+                        // For rate limiting / transient overload, allow up to 8 retries per worker with backoff and reset streak
+                        int max_retries = is_server_overloaded ? 8 : m_cfg.max_retries_per_worker;
+                        uint32_t max_streak = is_server_overloaded ? 16 : 12;
 
                         if (!res.error->retryable || retries >= max_retries || fail_streak > max_streak) {
                             seg->active_worker.store(false);
@@ -1088,9 +1170,9 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
                             std::to_string(seg->segment_id) + " at offset " + std::to_string(seg->current_offset.load()) +
                             " (retry " + std::to_string(retries) + ", streak " + std::to_string(fail_streak) + ")");
 
+                        // If server provided a valid Retry-After, we MUST respect it fully (up to 15s) and not truncate it!
                         int exp_backoff = (100 * (1 << std::min(retries, 6))) + (std::rand() % 150);
-                        int backoff_ms = std::max(retry_after_ms, exp_backoff);
-                        backoff_ms = std::min(backoff_ms, 15000); // Bound backoff
+                        int backoff_ms = (retry_after_ms > 0) ? retry_after_ms : std::min(exp_backoff, 15000);
                         const auto backoff_started = std::chrono::steady_clock::now();
 
                         for (int slept = 0; slept < backoff_ms; slept += 50) {
@@ -1124,7 +1206,9 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         std::vector<std::thread> workers;
         // Paced ramp-up: Spawn initial worker, then ramp concurrency in the coordinator loop
         // rather than burst-spawning 32 connections simultaneously at t=0, avoiding firewall/CDN flood triggers.
-        uint32_t target_initial = std::min<uint32_t>(2, max_conns);
+        // When initial equipartition segments exist, launch all initial workers immediately
+        // so all partitions start transferring in parallel without artificial serialization delay.
+        uint32_t target_initial = max_conns;
         for (uint32_t i = 0; i < target_initial; ++i) {
             workers.emplace_back(worker_fn, i);
         }

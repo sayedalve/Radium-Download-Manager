@@ -224,31 +224,75 @@ bool IsLoopbackHost(std::string_view host) {
 
 } // namespace
 
-bool ParseContentRange(std::string_view val, uint64_t& start, uint64_t& end, uint64_t& total) {
+static bool ParseUint64Strict(std::string_view s, uint64_t& out) {
+    s = Trim(s);
+    if (s.empty()) return false;
+    uint64_t val = 0;
+    for (char c : s) {
+        if (c < '0' || c > '9') return false;
+        uint64_t digit = static_cast<uint64_t>(c - '0');
+        if (val > (UINT64_MAX - digit) / 10) return false; // overflow
+        val = val * 10 + digit;
+    }
+    out = val;
+    return true;
+}
+
+ContentRangeResult ParseContentRangeExtended(std::string_view val) {
+    ContentRangeResult res;
     std::string s = Trim(val);
-    if (ToLower(s.substr(0, 6)) != "bytes ") return false;
+    if (s.size() < 6 || ToLower(s.substr(0, 6)) != "bytes ") return res;
     s = Trim(s.substr(6));
     auto slash = s.find('/');
-    if (slash == std::string::npos) return false;
-    std::string range_part = s.substr(0, slash);
-    std::string total_part = s.substr(slash + 1);
-    auto dash = range_part.find('-');
-    if (dash == std::string::npos) return false;
-    try {
-        start = std::stoull(range_part.substr(0, dash));
-        end = std::stoull(range_part.substr(dash + 1));
-        if (total_part != "*") {
-            total = std::stoull(total_part);
-            if (total == 0 || start >= total || end >= total) {
-                return false;
-            }
-        } else {
-            total = 0;
+    if (slash == std::string::npos) return res;
+    std::string range_part = Trim(s.substr(0, slash));
+    std::string total_part = Trim(s.substr(slash + 1));
+
+    if (total_part != "*") {
+        if (!ParseUint64Strict(total_part, res.range_total)) {
+            return res; // invalid total format
         }
-        return start <= end;
-    } catch (...) {
-        return false;
+        res.has_total = true;
     }
+
+    if (range_part == "*") {
+        // Unsatisfied range (RFC 9110 Section 14.4, e.g. 'bytes */0' or 'bytes */1234')
+        if (res.has_total) {
+            res.is_valid = true;
+            res.is_unsatisfied = true;
+        }
+        return res;
+    }
+
+    auto dash = range_part.find('-');
+    if (dash == std::string::npos) return res;
+    std::string start_str = range_part.substr(0, dash);
+    std::string end_str = range_part.substr(dash + 1);
+
+    if (!ParseUint64Strict(start_str, res.range_start) || !ParseUint64Strict(end_str, res.range_end)) {
+        return res;
+    }
+
+    if (res.range_start > res.range_end) return res;
+
+    if (res.has_total) {
+        if (res.range_total == 0 || res.range_start >= res.range_total || res.range_end >= res.range_total) {
+            return res; // inconsistent bounds vs total
+        }
+    }
+
+    res.is_valid = true;
+    res.is_unsatisfied = false;
+    return res;
+}
+
+bool ParseContentRange(std::string_view val, uint64_t& start, uint64_t& end, uint64_t& total) {
+    auto res = ParseContentRangeExtended(val);
+    if (!res.is_valid || res.is_unsatisfied) return false;
+    start = res.range_start;
+    end = res.range_end;
+    total = res.range_total;
+    return true;
 }
 
 namespace {
@@ -266,13 +310,27 @@ void PopulateHeaderField(HttpResponseMeta& meta, const std::string& k, const std
             meta.is_chunked = true;
         }
     } else if (kl == "accept-ranges") {
-        if (ToLower(v).find("bytes") != std::string::npos) {
+        std::string vl = ToLower(v);
+        if (vl.find("none") != std::string::npos) {
+            meta.accept_ranges_none = true;
+        }
+        if (vl.find("bytes") != std::string::npos) {
             meta.accept_ranges_bytes = true;
         }
     } else if (kl == "content-range") {
-        if (ParseContentRange(v, meta.range_start, meta.range_end, meta.range_total)) {
-            meta.is_partial_content = true;
-            meta.accept_ranges_bytes = true;
+        auto cr = ParseContentRangeExtended(v);
+        if (cr.is_valid) {
+            meta.range_start = cr.range_start;
+            meta.range_end = cr.range_end;
+            meta.range_total = cr.range_total;
+            meta.has_range_total = cr.has_total;
+            meta.is_unsatisfied_range = cr.is_unsatisfied;
+            if (!cr.is_unsatisfied) {
+                meta.is_partial_content = true;
+                meta.accept_ranges_bytes = true;
+            }
+        } else {
+            meta.content_range_malformed = true;
         }
     } else if (kl == "etag") {
         meta.etag = v;
