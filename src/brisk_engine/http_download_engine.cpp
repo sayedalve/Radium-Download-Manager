@@ -518,11 +518,17 @@ Result<std::filesystem::path> HttpDownloadEngine::ExecuteDownload(
         task.file_name = "download.bin";
     }
     task.file_name = PathSanitizer::SanitizeFileName(task.file_name);
-    task.category = InferCategoryFromFilename(task.file_name);
-    if ((task.category.empty() || task.category == "General") && !probe_meta.content_type.empty()) {
-        std::string mime_cat = InferCategoryFromMime(probe_meta.content_type);
-        if (mime_cat != "General") {
-            task.category = mime_cat;
+    // Preserve explicitly assigned category (e.g. from user choice, site rules, or custom extensions).
+    // Only infer from filename or probe response MIME metadata if unassigned or fallback "General".
+    if (task.category.empty() || task.category == "General") {
+        std::string fn_cat = InferCategoryFromFilename(task.file_name);
+        if (fn_cat != "General") {
+            task.category = fn_cat;
+        } else if (!probe_meta.content_type.empty()) {
+            std::string mime_cat = InferCategoryFromMime(probe_meta.content_type);
+            if (mime_cat != "General") {
+                task.category = mime_cat;
+            }
         }
     }
 

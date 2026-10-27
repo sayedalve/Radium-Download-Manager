@@ -14,6 +14,7 @@ try:
 except ImportError:
     resource = None
 import shutil
+import socket
 import socketserver
 import statistics
 import sqlite3
@@ -134,12 +135,33 @@ class FaultInjectionHttpHandler(http.server.BaseHTTPRequestHandler):
             rng = self.headers.get("Range", "")
             if rng and rng != "bytes=0-0" and FaultInjectionHttpHandler.flaky_attempts == 0:
                 FaultInjectionHttpHandler.flaky_attempts += 1
+                total = len(data)
+                start, end = 0, total - 1
+                if rng.startswith("bytes="):
+                    spec = rng.split("=", 1)[1].strip()
+                    parts = spec.split("-", 1)
+                    if parts[0]:
+                        start = int(parts[0])
+                    if len(parts) > 1 and parts[1]:
+                        end = min(int(parts[1]), total - 1)
+                span = end - start + 1
                 self.send_response(206)
                 self.send_header("Accept-Ranges", "bytes")
-                self.send_header("Content-Range", f"bytes 0-{len(data)-1}/{len(data)}")
-                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+                self.send_header("Content-Length", str(span))
                 self.end_headers()
-                self.wfile.write(data[:65536])
+                partial_size = min(65536, max(1, span // 2))
+                try:
+                    self.wfile.write(data[start : start + partial_size])
+                    self.wfile.flush()
+                except Exception:
+                    pass
+                self.close_connection = True
+                try:
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                    self.connection.close()
+                except Exception:
+                    pass
                 return
             self._serve_buffer(data, support_range=True, etag='"flaky-2mb"')
             return

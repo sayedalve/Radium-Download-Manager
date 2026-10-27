@@ -142,6 +142,22 @@ bool IsTimeInScheduledWindow(const std::string& cur, const std::string& start, c
         return false;
     }
 }
+
+bool HasScheduleWindowElapsed(const std::string& cur, const std::string& start, const std::string& stop) {
+    if (!IsValidTimeFormat(cur) || cur.empty()) return false;
+    if (!IsValidTimeFormat(start) || !IsValidTimeFormat(stop)) return false;
+    if (stop.empty()) return false;
+    if (start < stop) {
+        // Normal intraday window [start, stop)
+        // If cur >= stop, the window has elapsed. If cur < start, it is in the future.
+        return cur >= stop;
+    } else if (start > stop) {
+        // Overnight window [start, midnight) U [midnight, stop)
+        // The non-active period is [stop, start).
+        return cur >= stop && cur < start;
+    }
+    return false;
+}
 } // namespace
 
 namespace openidm {
@@ -184,20 +200,25 @@ Result<void> DownloadController::Initialize() {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (loaded.ok()) {
-            auto now_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            std::tm local_tm{};
+            std::string startup_hh_mm;
+            if (m_cfg.local_time_override) {
+                startup_hh_mm = m_cfg.local_time_override();
+            } else {
+                auto now_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+                std::tm local_tm{};
 #ifdef _WIN32
-            localtime_s(&local_tm, &now_t);
+                localtime_s(&local_tm, &now_t);
 #else
-            localtime_r(&now_t, &local_tm);
+                localtime_r(&now_t, &local_tm);
 #endif
-            char time_buf[16] = {0};
-            std::strftime(time_buf, sizeof(time_buf), "%H:%M", &local_tm);
-            std::string startup_hh_mm(time_buf);
+                char time_buf[16] = {0};
+                std::strftime(time_buf, sizeof(time_buf), "%H:%M", &local_tm);
+                startup_hh_mm = time_buf;
+            }
             for (auto& t : *loaded.value) {
                 if (t.scheduled && !t.schedule_stop_time_local.empty()) {
-                    bool in_window = IsTimeInScheduledWindow(startup_hh_mm, t.schedule_time_local, t.schedule_stop_time_local);
-                    if (!in_window) {
+                    bool elapsed = HasScheduleWindowElapsed(startup_hh_mm, t.schedule_time_local, t.schedule_stop_time_local);
+                    if (elapsed) {
                         t.scheduled = false;
                         t.status_detail = "Schedule Expired (Window elapsed while offline)";
                         t.schedule_time_local.clear();
@@ -656,9 +677,10 @@ Result<TaskModel> DownloadController::IngestCompletedTask(TaskModel task, const 
     task.status_detail = "Completed";
 
     // Antivirus scan
-    if (security::AntivirusScanner::IsWindowsDefenderAvailable()) {
+    bool av_available = m_cfg.av_available_override ? m_cfg.av_available_override() : security::AntivirusScanner::IsWindowsDefenderAvailable();
+    if (av_available) {
         if (std::filesystem::exists(dest_path, ec)) {
-            auto scan_res = security::AntivirusScanner::ScanWithDefender(dest_path);
+            auto scan_res = m_cfg.av_scan_override ? m_cfg.av_scan_override(dest_path) : security::AntivirusScanner::ScanWithDefender(dest_path);
             if (scan_res.ok()) {
                 if (scan_res.value->status == security::ScanStatus::kThreatDetected) {
                     task.state = TaskState::kFailed;
@@ -676,7 +698,7 @@ Result<TaskModel> DownloadController::IngestCompletedTask(TaskModel task, const 
                         task.error_message = "Antivirus scanner failed in strict mode";
                         task.status_detail = "Failed: Antivirus scanner error (Strict mode)";
                     } else {
-                    task.status_detail = "Completed (Antivirus Scan Failed)";
+                        task.status_detail = "Completed (Antivirus Scan Failed)";
                     }
                 } else {
                     task.status_detail = "Completed (Antivirus Skipped)";
@@ -688,12 +710,19 @@ Result<TaskModel> DownloadController::IngestCompletedTask(TaskModel task, const 
                     task.error_message = "Antivirus scanner error: " + scan_res.error->message;
                     task.status_detail = "Failed: Antivirus scan error (Strict mode)";
                 } else {
-                task.status_detail = "Completed (Antivirus Scan Error: " + scan_res.error->message + ")";
+                    task.status_detail = "Completed (Antivirus Scan Error: " + scan_res.error->message + ")";
                 }
             }
         }
     } else {
-        task.status_detail = "Completed (Not Scanned - Scanner Unavailable)";
+        if (m_settings.av_strict_mode) {
+            task.state = TaskState::kFailed;
+            task.error_code = "ERR_AV_UNAVAILABLE";
+            task.error_message = "Antivirus scanner is unavailable in strict mode";
+            task.status_detail = "Failed: Antivirus scanner unavailable (Strict mode)";
+        } else {
+            task.status_detail = "Completed (Not Scanned - Scanner Unavailable)";
+        }
     }
 
 #ifdef _WIN32
@@ -791,16 +820,21 @@ void DownloadController::ScheduleLoop() {
         }
 
         // 1. Check for scheduled tasks that reached their local schedule time
-        auto now_time_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        std::tm local_tm{};
+        std::string cur_hh_mm;
+        if (m_cfg.local_time_override) {
+            cur_hh_mm = m_cfg.local_time_override();
+        } else {
+            auto now_time_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            std::tm local_tm{};
 #ifdef _WIN32
-        localtime_s(&local_tm, &now_time_t);
+            localtime_s(&local_tm, &now_time_t);
 #else
-        localtime_r(&now_time_t, &local_tm);
+            localtime_r(&now_time_t, &local_tm);
 #endif
-        char time_str[16] = {0};
-        std::strftime(time_str, sizeof(time_str), "%H:%M", &local_tm);
-        std::string cur_hh_mm(time_str);
+            char time_str[16] = {0};
+            std::strftime(time_str, sizeof(time_str), "%H:%M", &local_tm);
+            cur_hh_mm = time_str;
+        }
 
         for (auto& [id, t] : m_tasks) {
             // Check scheduled start & stop time strictly on scheduled tasks
@@ -1446,7 +1480,8 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
 
     if (local_task.state == TaskState::kCompleted) {
         // Post-Download Antivirus Scan (outside m_mutex to avoid locking controller for up to 30s)
-        if (security::AntivirusScanner::IsWindowsDefenderAvailable()) {
+        bool av_available = m_cfg.av_available_override ? m_cfg.av_available_override() : security::AntivirusScanner::IsWindowsDefenderAvailable();
+        if (av_available) {
             std::filesystem::path final_p = std::filesystem::path(local_task.save_dir) / local_task.file_name;
             std::error_code ec;
             if (std::filesystem::exists(final_p, ec)) {
@@ -1459,7 +1494,7 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
                         it->second.status_detail = "Finalizing output (Antivirus scan in progress)...";
                     }
                 }
-                auto scan_res = security::AntivirusScanner::ScanWithDefender(final_p);
+                auto scan_res = m_cfg.av_scan_override ? m_cfg.av_scan_override(final_p) : security::AntivirusScanner::ScanWithDefender(final_p);
                 if (scan_res.ok()) {
                     if (scan_res.value->status == security::ScanStatus::kThreatDetected) {
                         local_task.state = TaskState::kFailed;
@@ -1473,31 +1508,38 @@ void DownloadController::RunTaskWorker(std::string task_id, std::shared_ptr<Acti
                         local_task.state = TaskState::kCompleted;
                         local_task.status_detail = "Completed (Antivirus Clean)";
                     } else if (scan_res.value->status == security::ScanStatus::kScannerError) {
-                    if (m_settings.av_strict_mode) {
-                        local_task.state = TaskState::kFailed;
-                        local_task.error_code = "ERR_AV_SCAN_FAILED";
-                        local_task.error_message = "Antivirus scanner failed in strict mode";
-                        local_task.status_detail = "Failed: Antivirus scanner error (Strict mode)";
-                    } else {
-                        local_task.status_detail = "Completed (Antivirus Scan Failed)";
-                    }
+                        if (m_settings.av_strict_mode) {
+                            local_task.state = TaskState::kFailed;
+                            local_task.error_code = "ERR_AV_SCAN_FAILED";
+                            local_task.error_message = "Antivirus scanner failed in strict mode";
+                            local_task.status_detail = "Failed: Antivirus scanner error (Strict mode)";
+                        } else {
+                            local_task.status_detail = "Completed (Antivirus Scan Failed)";
+                        }
                     } else {
                         local_task.state = TaskState::kCompleted;
                         local_task.status_detail = "Completed (Antivirus Skipped)";
                     }
                 } else {
-                if (m_settings.av_strict_mode) {
-                    local_task.state = TaskState::kFailed;
-                    local_task.error_code = "ERR_AV_SCAN_FAILED";
-                    local_task.error_message = "Antivirus scanner error: " + scan_res.error->message;
-                    local_task.status_detail = "Failed: Antivirus scan error (Strict mode)";
-                } else {
-                    local_task.status_detail = "Completed (Antivirus Scan Error: " + scan_res.error->message + ")";
-                }
+                    if (m_settings.av_strict_mode) {
+                        local_task.state = TaskState::kFailed;
+                        local_task.error_code = "ERR_AV_SCAN_FAILED";
+                        local_task.error_message = "Antivirus scanner error: " + scan_res.error->message;
+                        local_task.status_detail = "Failed: Antivirus scan error (Strict mode)";
+                    } else {
+                        local_task.status_detail = "Completed (Antivirus Scan Error: " + scan_res.error->message + ")";
+                    }
                 }
             }
         } else {
-            local_task.status_detail = "Completed (Not Scanned - Scanner Unavailable)";
+            if (m_settings.av_strict_mode) {
+                local_task.state = TaskState::kFailed;
+                local_task.error_code = "ERR_AV_UNAVAILABLE";
+                local_task.error_message = "Antivirus scanner is unavailable in strict mode";
+                local_task.status_detail = "Failed: Antivirus scanner unavailable (Strict mode)";
+            } else {
+                local_task.status_detail = "Completed (Not Scanned - Scanner Unavailable)";
+            }
         }
 #ifdef _WIN32
         if (m_settings.show_completion_notification && local_task.state == TaskState::kCompleted) {
