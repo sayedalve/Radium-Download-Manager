@@ -186,7 +186,7 @@ if ($fluxProcs) {
 Write-Host ""
 Write-Host "--- 4. Brave Native Messaging Host Registration ---" -ForegroundColor Yellow
 
-$targetHosts = @("com.flux.downloadmanager", "org.flux.native", "org.openidm.native")
+$targetHosts = @("com.radium.downloadmanager", "com.flux.downloadmanager", "org.flux.native", "org.openidm.native")
 $braveRegBasePath = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts"
 
 foreach ($hostName in $targetHosts) {

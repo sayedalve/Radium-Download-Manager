@@ -22,13 +22,26 @@ struct ParsedUrl {
     std::string userinfo; // e.g. "user:pass"
 };
 
+struct ContentRangeResult {
+    bool is_valid{false};
+    bool is_unsatisfied{false};
+    bool has_total{false};
+    uint64_t range_start{0};
+    uint64_t range_end{0};
+    uint64_t range_total{0};
+};
+
 struct HttpResponseMeta {
     int status_code{0};
     std::string final_url;
     uint64_t content_length{0};
     bool has_content_length{false};
     bool accept_ranges_bytes{false};
+    bool accept_ranges_none{false};
     bool is_partial_content{false};
+    bool is_unsatisfied_range{false};
+    bool has_range_total{false};
+    bool content_range_malformed{false};
     uint64_t range_start{0};
     uint64_t range_end{0};
     uint64_t range_total{0};
@@ -157,6 +170,7 @@ public:
 
 // Parses RFC 9110 / RFC 7233 Content-Range header value (e.g. "bytes 0-1023/2048")
 // Enforces range satisfaction validation (rejects start >= total || end >= total || total == 0).
+ContentRangeResult ParseContentRangeExtended(std::string_view val);
 bool ParseContentRange(std::string_view val, uint64_t& start, uint64_t& end, uint64_t& total);
 
 } // namespace openidm::brisk

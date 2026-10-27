@@ -567,7 +567,7 @@ async function runBrowserRuntimeTests() {
       if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendNativeMessage) {
         return new Promise((resolve) => {
           try {
-            chrome.runtime.sendNativeMessage("com.flux.downloadmanager", { method: "system.handshake" }, (response) => {
+            chrome.runtime.sendNativeMessage("com.radium.downloadmanager", { method: "system.handshake" }, (response) => {
               const err = chrome.runtime.lastError;
               resolve({
                 supported: true,

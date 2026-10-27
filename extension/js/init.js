@@ -13,8 +13,8 @@ var SourceType = {
 
 var G = {
   version: "0.3.1",
-  nativeHostName: "com.flux.downloadmanager",
-  fallbackNativeHostNames: ["org.flux.native", "org.openidm.native"],
+  nativeHostName: "com.radium.downloadmanager",
+  fallbackNativeHostNames: ["com.flux.downloadmanager", "org.flux.native", "org.openidm.native"],
   enableCapture: true,
   enableVideoOverlay: true,
   minFileSizeBytes: 1048576, // 1 MiB minimum for size-only fallback file interception

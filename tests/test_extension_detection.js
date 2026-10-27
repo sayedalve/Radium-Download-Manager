@@ -1090,6 +1090,16 @@ async function runTests() {
   assert.strictEqual(submittedParams.fileName, "9755.mp4", "Numeric server filename receives MIME-derived media extension");
   console.log("  -> PASS");
 
+  // Extension manifest parity check
+  const rootDir = path.resolve(__dirname, "..");
+  const mDev = JSON.parse(fs.readFileSync(path.join(rootDir, "extension", "manifest.json"), "utf8"));
+  const mChr = JSON.parse(fs.readFileSync(path.join(rootDir, "extension", "manifest.chromium.json"), "utf8"));
+  const mFox = JSON.parse(fs.readFileSync(path.join(rootDir, "extension", "manifest.firefox.json"), "utf8"));
+  assert.strictEqual(JSON.stringify(mDev), JSON.stringify(mChr), "manifest.json and manifest.chromium.json must remain identical");
+  assert.strictEqual(mDev.name, "Radium Download Manager");
+  assert.strictEqual(mFox.name, "Radium Download Manager");
+  console.log("  [Manifest Parity] verified manifest.json == manifest.chromium.json -> PASS");
+
   console.log("\n=======================================================");
   console.log("Browser Extension Suite: 18/18 suites (26/26 edge scenarios) PASSED.");
   console.log("=======================================================");

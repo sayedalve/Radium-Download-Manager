@@ -71,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File scripts\package-release-zip.ps1 -Versio
 
 ---
 
-## 4. Inno Setup Installer (`installer/flux.iss`)
+## 4. Inno Setup Installer (`installer/radium.iss`)
 
 - **Per-User Non-Elevated Execution:** Uses `PrivilegesRequired=lowest` with `PrivilegesRequiredOverridesAllowed=dialog`. Installs cleanly into `{autopf}\Flux Download Manager` without prompting for UAC elevation on standard accounts.
 - **Component Selection:**

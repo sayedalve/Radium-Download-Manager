@@ -3,7 +3,7 @@
 - **Date:** 2026-10-16
 - **Status:** Proposed
 - **Deciders:** Principal Software Architect, Application Security Engineer, Release Engineer
-- **Related Documents:** [../../LICENSE_REVIEW.md](../../LICENSE_REVIEW.md), [../TECHNOLOGY_STACK.md](../TECHNOLOGY_STACK.md), [../UPSTREAM_PROJECT_ANALYSIS.md](../UPSTREAM_PROJECT_ANALYSIS.md)
+- **Related Documents:** [../LICENSE_REVIEW.md](../LICENSE_REVIEW.md), [../TECHNOLOGY_STACK.md](../TECHNOLOGY_STACK.md), [../UPSTREAM_PROJECT_ANALYSIS.md](../UPSTREAM_PROJECT_ANALYSIS.md)
 
 ---
 
@@ -51,4 +51,4 @@ We need a clear project license and a strict dependency gate so future contribut
 ## Risks & Mitigations
 
 - **Risk:** Distributing `ffmpeg.exe` (`GPL-3.0`) in the installer without providing corresponding FFmpeg source code violates GPL-3.0 Section 6.
-- **Mitigation:** Archive the exact matching source tarball (`ffmpeg-x.y.z.tar.xz` and build script) alongside every GitHub Release that ships an installer containing `ffmpeg.exe` ([../../LICENSE_REVIEW.md](../../LICENSE_REVIEW.md)).
+- **Mitigation:** Archive the exact matching source tarball (`ffmpeg-x.y.z.tar.xz` and build script) alongside every GitHub Release that ships an installer containing `ffmpeg.exe` ([../LICENSE_REVIEW.md](../LICENSE_REVIEW.md)).

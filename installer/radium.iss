@@ -112,7 +112,7 @@ CloseApplications=yes
 RestartApplications=no
 AppMutex=Local\Radium_SingleInstance,Local\Flux_SingleInstance,Local\OpenIDM_SingleInstance
 UninstallDisplayIcon={app}\{#MyAppExeName}
-SetupIconFile=radium.ico
+SetupIconFile=..\src\app\radium.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -148,6 +148,8 @@ Source: "..\README.md"; DestDir: "{app}"; Components: core; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Components: core; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Components: core; Flags: ignoreversion
 Source: "..\scripts\register-native-messaging.ps1"; DestDir: "{app}\scripts"; Components: core; Flags: ignoreversion
+Source: "manifests\com.radium.downloadmanager.chromium.json"; DestDir: "{app}\manifests"; Components: core; Flags: ignoreversion
+Source: "manifests\com.radium.downloadmanager.firefox.json"; DestDir: "{app}\manifests"; Components: core; Flags: ignoreversion
 Source: "manifests\com.flux.downloadmanager.chromium.json"; DestDir: "{app}\manifests"; Components: core; Flags: ignoreversion
 Source: "manifests\com.flux.downloadmanager.firefox.json"; DestDir: "{app}\manifests"; Components: core; Flags: ignoreversion
 Source: "manifests\org.openidm.native.chromium.json"; DestDir: "{app}\manifests"; Components: core; Flags: ignoreversion
@@ -172,7 +174,13 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
-; Primary Flux Native Messaging Host Registrations (HKCU per-user, non-admin)
+; Primary Radium Native Messaging Host Registrations (HKCU per-user, non-admin)
+Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.radium.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.radium.downloadmanager.chromium.json"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\com.radium.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.radium.downloadmanager.chromium.json"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.radium.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.radium.downloadmanager.chromium.json"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Mozilla\NativeMessagingHosts\com.radium.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.radium.downloadmanager.firefox.json"; Flags: uninsdeletekey
+
+; Compatibility Flux Native Messaging Host Registrations (HKCU per-user, non-admin)
 Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.flux.downloadmanager.chromium.json"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.flux.downloadmanager.chromium.json"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.flux.downloadmanager"; ValueType: string; ValueName: ""; ValueData: "{app}\manifests\com.flux.downloadmanager.chromium.json"; Flags: uninsdeletekey
@@ -196,6 +204,8 @@ procedure WriteNativeMessagingManifests();
 var
   NmhPathEscaped: String;
   ManifestDir: String;
+  RadiumChromiumJson: String;
+  RadiumFirefoxJson: String;
   FluxChromiumJson: String;
   FluxFirefoxJson: String;
   LegacyChromiumJson: String;
@@ -206,10 +216,37 @@ begin
   ManifestDir := ExpandConstant('{app}\manifests');
   ForceDirectories(ManifestDir);
 
+  RadiumChromiumJson :=
+    '{' + #13#10 +
+    '  "name": "com.radium.downloadmanager",' + #13#10 +
+    '  "description": "Radium Download Manager Native Messaging Host",' + #13#10 +
+    '  "path": "' + NmhPathEscaped + '",' + #13#10 +
+    '  "type": "stdio",' + #13#10 +
+    '  "allowed_origins": [' + #13#10 +
+    '    "chrome-extension://mdgmlcnpodoehidlplplfegngnjnilap/",' + #13#10 +
+    '    "chrome-extension://chbojfoombcanhhpoclailollapkglma/"' + #13#10 +
+    '  ]' + #13#10 +
+    '}' + #13#10;
+  SaveStringToFile(ManifestDir + '\com.radium.downloadmanager.chromium.json', RadiumChromiumJson, False);
+
+  RadiumFirefoxJson :=
+    '{' + #13#10 +
+    '  "name": "com.radium.downloadmanager",' + #13#10 +
+    '  "description": "Radium Download Manager Native Messaging Host",' + #13#10 +
+    '  "path": "' + NmhPathEscaped + '",' + #13#10 +
+    '  "type": "stdio",' + #13#10 +
+    '  "allowed_extensions": [' + #13#10 +
+    '    "radium-extension@radiumdownloadmanager.org",' + #13#10 +
+    '    "flux-extension@fluxdownloadmanager.org",' + #13#10 +
+    '    "flux@downloadmanager.org"' + #13#10 +
+    '  ]' + #13#10 +
+    '}' + #13#10;
+  SaveStringToFile(ManifestDir + '\com.radium.downloadmanager.firefox.json', RadiumFirefoxJson, False);
+
   FluxChromiumJson :=
     '{' + #13#10 +
     '  "name": "com.flux.downloadmanager",' + #13#10 +
-    '  "description": "Radium Download Manager Native Messaging Host",' + #13#10 +
+    '  "description": "Radium Download Manager Native Messaging Host (Compatibility)",' + #13#10 +
     '  "path": "' + NmhPathEscaped + '",' + #13#10 +
     '  "type": "stdio",' + #13#10 +
     '  "allowed_origins": [' + #13#10 +
@@ -222,7 +259,7 @@ begin
   FluxFirefoxJson :=
     '{' + #13#10 +
     '  "name": "com.flux.downloadmanager",' + #13#10 +
-    '  "description": "Radium Download Manager Native Messaging Host",' + #13#10 +
+    '  "description": "Radium Download Manager Native Messaging Host (Compatibility)",' + #13#10 +
     '  "path": "' + NmhPathEscaped + '",' + #13#10 +
     '  "type": "stdio",' + #13#10 +
     '  "allowed_extensions": [' + #13#10 +

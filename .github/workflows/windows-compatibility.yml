@@ -66,7 +66,7 @@ jobs:
 
       - name: Build Windows Targets
         run: |
-          cmake --build build --config Release --target radium radium-nmh radium_unit_tests openidm openidm-nmh openidm_unit_tests N_m3u8DL-RE
+          cmake --build build --config Release --target radium radium-nmh radium_unit_tests radium_core_tests openidm openidm-nmh openidm_unit_tests N_m3u8DL-RE
 
       - name: Provision Upstream Stream Workers
         shell: powershell
@@ -98,6 +98,7 @@ jobs:
             build/Release/radium.exe
             build/Release/radium-nmh.exe
             build/Release/radium_unit_tests.exe
+            build/Release/radium_core_tests.exe
             build/Release/N_m3u8DL-RE.exe
             tools/win-x64/**
             dist/**
@@ -170,7 +171,24 @@ jobs:
           Write-Host "Build Number : $($osInfo.BuildNumber)"
           Write-Host "Architecture : $($osInfo.OSArchitecture)"
 
-      - name: Run C++20 Regression Tests (62 Suites)
+      - name: Run Dedicated C++ Core Unit Tests (CTest)
+        id: ctest_core
+        shell: powershell
+        run: |
+          $exitCode = 0
+          try {
+            .\build\Release\radium_core_tests.exe
+            $exitCode = $LASTEXITCODE
+          } catch {
+            $exitCode = 1
+            Write-Host "Exception running radium_core_tests.exe: $_"
+          }
+          if ($exitCode -ne 0) {
+            "test_failed=true" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            Write-Host "::error::Dedicated C++ core unit tests failed with exit code $exitCode"
+          }
+
+      - name: Run C++20 Regression Tests (72 Suites)
         id: cpp_tests
         shell: powershell
         run: |

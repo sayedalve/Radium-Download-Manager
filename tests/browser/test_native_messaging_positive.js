@@ -40,14 +40,14 @@ async function runPositiveNativeMessagingTest() {
   console.log(`Installed Application Root: ${installDir}`);
 
   // 1. Verify Native Messaging Manifest on Disk
-  const manifestPath = path.join(installDir, "manifests", "com.flux.downloadmanager.chromium.json");
+  const manifestPath = path.join(installDir, "manifests", "com.radium.downloadmanager.chromium.json");
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Native Messaging manifest missing at: ${manifestPath}`);
   }
   const manifestData = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
   console.log("  [OK] Native Messaging manifest found:", manifestData.name);
 
-  if (manifestData.name !== "com.flux.downloadmanager") {
+  if (manifestData.name !== "com.radium.downloadmanager") {
     throw new Error(`Manifest name mismatch: "${manifestData.name}"`);
   }
   let expectedNmh = path.join(installDir, "radium-nmh.exe");
@@ -121,7 +121,7 @@ async function runPositiveNativeMessagingTest() {
     const handshakeResult = await serviceWorker.evaluate(async () => {
       return new Promise((resolve, reject) => {
         try {
-          chrome.runtime.sendNativeMessage("com.flux.downloadmanager", {
+          chrome.runtime.sendNativeMessage("com.radium.downloadmanager", {
             jsonrpc: "2.0",
             id: "test-hs-101",
             method: "system.handshake",
@@ -158,7 +158,7 @@ async function runPositiveNativeMessagingTest() {
     const offerResult = await serviceWorker.evaluate(async (url) => {
       return new Promise((resolve, reject) => {
         try {
-          chrome.runtime.sendNativeMessage("com.flux.downloadmanager", {
+          chrome.runtime.sendNativeMessage("com.radium.downloadmanager", {
             jsonrpc: "2.0",
             id: "test-offer-102",
             method: "download.offer",

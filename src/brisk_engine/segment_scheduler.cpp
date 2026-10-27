@@ -142,6 +142,39 @@ void SegmentScheduler::Initialize(const std::vector<Segment>& existing_segments)
     m_segments.push_back(std::make_shared<LiveSegment>(m_next_segment_id++, 0, 0, end, false));
 }
 
+void SegmentScheduler::InitializeEquipartition(uint32_t initial_connections) {
+    SchedulerTimedLock lock(m_mutex, "scheduler_state", "InitializeEquipartition");
+    m_segments.clear();
+    m_next_segment_id = 0;
+
+    if (m_total_bytes == 0) {
+        m_segments.push_back(std::make_shared<LiveSegment>(m_next_segment_id++, 0, 0, 0, false));
+        return;
+    }
+
+    uint32_t conns = std::clamp(initial_connections, 1u, m_max_connections);
+    // Ensure each partition is at least min_split_bytes (or total_bytes if smaller)
+    if (m_min_split_bytes > 0 && conns > 1) {
+        while (conns > 1 && (m_total_bytes / conns) < m_min_split_bytes) {
+            --conns;
+        }
+    }
+
+    uint64_t base_chunk = m_total_bytes / conns;
+    uint64_t remainder = m_total_bytes % conns;
+    uint64_t current_offset = 0;
+
+    for (uint32_t i = 0; i < conns; ++i) {
+        uint64_t chunk_len = base_chunk + (i < remainder ? 1ULL : 0ULL);
+        uint64_t seg_start = current_offset;
+        uint64_t seg_end = (i == conns - 1) ? (m_total_bytes - 1) : (seg_start + chunk_len - 1);
+        current_offset = seg_end + 1;
+
+        m_segments.push_back(std::make_shared<LiveSegment>(
+            m_next_segment_id++, seg_start, seg_start, seg_end, false));
+    }
+}
+
 std::shared_ptr<LiveSegment> SegmentScheduler::AcquireNextOrStealSegment(bool allow_split) {
     SchedulerTimedLock lock(m_mutex, "scheduler_state", "AcquireNextOrStealSegment");
 
@@ -205,19 +238,27 @@ std::shared_ptr<LiveSegment> SegmentScheduler::AcquireNextOrStealSegment(bool al
         }
     }
 
-    // Pass 2: if no un-pending segment is available, fall back to segments with split_pending
-    // that have a very large remaining backlog (>= 8 * min_separation)
-    if (!best_victim) {
-        for (auto& seg : m_segments) {
-            if (seg->completed.load()) continue;
-            uint64_t curr = seg->current_offset.load();
-            uint64_t end = seg->end_offset.load();
-            if (end > curr) {
-                uint64_t rem = end - curr + 1;
-                if (rem >= 8 * min_separation && rem > max_remaining) {
-                    max_remaining = rem;
-                    best_victim = seg;
-                }
+    // Pass 2: fall back to segments with split_pending.
+    // During initial concurrency ramp-up (active_count + 1 < m_max_connections), allow bisecting
+    // an in-flight pending segment if its remaining backlog is larger than any un-pending candidate
+    // (rem >= 2 * min_separation and rem > max_remaining) so concurrency scales across a balanced
+    // bisection tree rather than a severely skewed tail-splitting cascade.
+    // During steady-state (all connections already spawned), require a massive backlog (>= 8 * min_separation)
+    // to strictly prevent repeated resplits and connection churn near completion.
+    const uint64_t pending_threshold = (active_count + 1 < m_max_connections)
+        ? (2 * min_separation)
+        : (8 * min_separation);
+
+    for (auto& seg : m_segments) {
+        if (seg->completed.load()) continue;
+        if (!seg->split_pending.load()) continue; // already evaluated in Pass 1
+        uint64_t curr = seg->current_offset.load();
+        uint64_t end = seg->end_offset.load();
+        if (end > curr) {
+            uint64_t rem = end - curr + 1;
+            if (rem >= pending_threshold && rem > max_remaining) {
+                max_remaining = rem;
+                best_victim = seg;
             }
         }
     }

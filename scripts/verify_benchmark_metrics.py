@@ -17,8 +17,8 @@ def load_json(path):
         return json.load(f)
 
 def verify_500mb_benchmarks():
-    f1 = "benchmarks/adaptive_500mb_final/20261026_radium_vs_idm_500mb_adaptive_final.json"
-    f2 = "benchmarks/adaptive_500mb_confirmation/20261026_radium_vs_idm_500mb_adaptive_confirmation.json"
+    f1 = "benchmarks/results/adaptive_500mb_final/20261026_radium_vs_idm_500mb_adaptive_final.json"
+    f2 = "benchmarks/results/adaptive_500mb_confirmation/20261026_radium_vs_idm_500mb_adaptive_confirmation.json"
 
     if not os.path.exists(f1) or not os.path.exists(f2):
         print(f"[-] Missing benchmark JSON files: {f1} or {f2}")

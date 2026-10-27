@@ -66,22 +66,25 @@
 ## 4. Benchmark Documentation (`benchmarks/`)
 
 - **[../benchmarks/RESULTS.md](../benchmarks/RESULTS.md)** — Master benchmark registry, 500 MB comparative results against IDM, historical benchmarks, and raw artifact download instructions.
-- **[../benchmarks/IDM_RADIUM_2GB_COMPARISON.md](../benchmarks/IDM_RADIUM_2GB_COMPARISON.md)** — Dedicated 2.14 GB AlmaLinux ISO comparative transfer report.
-- **[../benchmarks/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md](../benchmarks/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md)** — Trial 1 live 500 MB benchmark report.
-- **[../benchmarks/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md](../benchmarks/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md)** — Trial 2 live 500 MB confirmation benchmark report (reversed order).
+- **[../benchmarks/results/IDM_RADIUM_2GB_COMPARISON.md](../benchmarks/results/IDM_RADIUM_2GB_COMPARISON.md)** — Dedicated 2.14 GB AlmaLinux ISO comparative transfer report.
+- **[../benchmarks/results/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md](../benchmarks/results/adaptive_500mb_final/20261026_500MB_ADAPTIVE_FINAL_REPORT.md)** — Trial 1 live 500 MB benchmark report.
+- **[../benchmarks/results/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md](../benchmarks/results/adaptive_500mb_confirmation/20261026_500MB_CONFIRMATION_REPORT.md)** — Trial 2 live 500 MB confirmation benchmark report (reversed order).
+
+- **[../benchmarks/results/LOCAL_BENCHMARK_TELEMETRY_CONSOLIDATED_REPORT.md](../benchmarks/results/LOCAL_BENCHMARK_TELEMETRY_CONSOLIDATED_REPORT.md)** — Consolidated local benchmark telemetry (16 MiB & 128 MiB synthetic loopback matrix).
+- **[benchmarks/REAL_WORLD_TEST_REPORT.md](benchmarks/REAL_WORLD_TEST_REPORT.md)** — Authoritative real-world test and UI evidence audit report.
+- **[LICENSE_REVIEW.md](LICENSE_REVIEW.md)** — Third-party license audits and GPL-3.0 compatibility verification.
 
 ---
 
 ## 5. Historical Maintenance Audits (`docs/archive/maintenance-audits/`)
 
-The following historical audit records, phased remediation logs, and initial rebranding audits are preserved for engineering reference:
+The following historical audit records, phased remediation logs, and initial rebranding audits are preserved for engineering reference in the archive:
 
 - **[archive/maintenance-audits/ANTIGRAVITY_FIX_REPORT.md](archive/maintenance-audits/ANTIGRAVITY_FIX_REPORT.md)** — Initial reverse engineering and defect triage.
 - **[archive/maintenance-audits/AUDIT_REMEDIATION_REPORT.md](archive/maintenance-audits/AUDIT_REMEDIATION_REPORT.md)** — Audit remediation report and verification matrix.
 - **[archive/maintenance-audits/BUG_FIX_LOG.md](archive/maintenance-audits/BUG_FIX_LOG.md)** — Detailed bug fix log (`BUG-001` through `BUG-014`).
 - **[archive/maintenance-audits/CURRENT_STATE_AUDIT.md](archive/maintenance-audits/CURRENT_STATE_AUDIT.md)** — Pre-rebranding state audit.
 - **[archive/maintenance-audits/DOCUMENTATION_AUDIT.md](archive/maintenance-audits/DOCUMENTATION_AUDIT.md)** — Documentation suite validation audit.
-- **[archive/maintenance-audits/FLUX_BRANDING.md](archive/maintenance-audits/FLUX_BRANDING.md)** — Legacy branding guidelines (superseded by Radium branding).
 - **[archive/maintenance-audits/FLUX_FAILURE_AUDIT.md](archive/maintenance-audits/FLUX_FAILURE_AUDIT.md)** — Diagnostic audit of legacy stream interception.
 - **[archive/maintenance-audits/FLUX_REBRANDING_AUDIT.md](archive/maintenance-audits/FLUX_REBRANDING_AUDIT.md)** — Audit of codebase rename to Radium.
 - **[archive/maintenance-audits/IDM_AUDIT_IMPLEMENTATION_MAP.md](archive/maintenance-audits/IDM_AUDIT_IMPLEMENTATION_MAP.md)** — Initial IDM feature parity roadmap.
@@ -89,4 +92,3 @@ The following historical audit records, phased remediation logs, and initial reb
 - **[archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md](archive/maintenance-audits/PRODUCT_COMPLETION_AUDIT.md)** — Early product completion audit.
 - **[archive/maintenance-audits/RELEASE_READINESS_REPORT.md](archive/maintenance-audits/RELEASE_READINESS_REPORT.md)** — Initial release readiness assessment.
 - **[archive/maintenance-audits/BENCHMARK_REPORT.md](archive/maintenance-audits/BENCHMARK_REPORT.md)** — Early internal benchmark measurements.
-- **[../REAL_WORLD_TEST_REPORT.md](../REAL_WORLD_TEST_REPORT.md)** — Authoritative real-world test and UI evidence audit report.

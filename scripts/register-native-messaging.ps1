@@ -26,6 +26,10 @@ Write-Host "=================================================================" -
 if ($doUnregister) {
     Write-Host "`n==> Removing Native Messaging Host Registrations from HKCU..." -ForegroundColor Yellow
     $regPaths = @(
+        "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.radium.downloadmanager",
+        "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.radium.downloadmanager",
+        "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.radium.downloadmanager",
+        "HKCU:\Software\Mozilla\NativeMessagingHosts\com.radium.downloadmanager",
         "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager",
         "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager",
         "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.flux.downloadmanager",
@@ -201,6 +205,8 @@ if (-not (Test-Path $manifestDir)) {
     New-Item -ItemType Directory -Force -Path $manifestDir | Out-Null
 }
 
+$radiumChromiumManifestPath = Join-Path $manifestDir "com.radium.downloadmanager.chromium.json"
+$radiumFirefoxManifestPath = Join-Path $manifestDir "com.radium.downloadmanager.firefox.json"
 $chromiumManifestPath = Join-Path $manifestDir "com.flux.downloadmanager.chromium.json"
 $firefoxManifestPath = Join-Path $manifestDir "com.flux.downloadmanager.firefox.json"
 
@@ -209,10 +215,20 @@ function Write-Utf8NoBom([string]$FilePath, [string]$Content) {
     [System.IO.File]::WriteAllText($FilePath, $Content, $utf8NoBom)
 }
 
-# 5. Generate Chromium Manifest
+# 5. Generate Primary Radium Manifests & Legacy Compatibility Manifests
+$radiumChromiumManifest = [ordered]@{
+    name = "com.radium.downloadmanager"
+    description = "Radium Download Manager Native Messaging Host"
+    path = $HostExePath
+    type = "stdio"
+    allowed_origins = $allowedOrigins
+}
+Write-Utf8NoBom -FilePath $radiumChromiumManifestPath -Content ($radiumChromiumManifest | ConvertTo-Json -Depth 5)
+Write-Host "[+] Wrote Primary Chromium manifest (UTF-8 no BOM): $radiumChromiumManifestPath" -ForegroundColor Green
+
 $chromiumManifest = [ordered]@{
     name = "com.flux.downloadmanager"
-    description = "Radium Download Manager Native Messaging Host"
+    description = "Radium Download Manager Native Messaging Host (Compatibility)"
     path = $HostExePath
     type = "stdio"
     allowed_origins = $allowedOrigins
@@ -220,7 +236,7 @@ $chromiumManifest = [ordered]@{
 
 $chromiumJson = $chromiumManifest | ConvertTo-Json -Depth 5
 Write-Utf8NoBom -FilePath $chromiumManifestPath -Content $chromiumJson
-Write-Host "[+] Wrote Chromium manifest (UTF-8 no BOM): $chromiumManifestPath" -ForegroundColor Green
+Write-Host "[+] Wrote Legacy Flux Chromium manifest (UTF-8 no BOM): $chromiumManifestPath" -ForegroundColor Green
 
 # 5.1 Generate Backwards-Compatible Alias Manifests
 $aliasManifests = @{}
@@ -238,10 +254,26 @@ foreach ($alias in @("org.flux.native", "org.openidm.native")) {
     Write-Host "[+] Wrote Alias manifest ($alias, UTF-8 no BOM): $aliasPath" -ForegroundColor Green
 }
 
-# 6. Generate Firefox Manifest
+# 6. Generate Firefox Manifests
+$radiumFirefoxManifest = [ordered]@{
+    name = "com.radium.downloadmanager"
+    description = "Radium Download Manager Native Messaging Host"
+    path = $HostExePath
+    type = "stdio"
+    allowed_extensions = @(
+        "radium-extension@radiumdownloadmanager.org",
+        "flux-extension@fluxdownloadmanager.org",
+        "flux@downloadmanager.org",
+        "flux@openidm.org",
+        "extension@openidm.org"
+    )
+}
+Write-Utf8NoBom -FilePath $radiumFirefoxManifestPath -Content ($radiumFirefoxManifest | ConvertTo-Json -Depth 5)
+Write-Host "[+] Wrote Primary Firefox manifest (UTF-8 no BOM): $radiumFirefoxManifestPath" -ForegroundColor Green
+
 $firefoxManifest = [ordered]@{
     name = "com.flux.downloadmanager"
-    description = "Radium Download Manager Native Messaging Host"
+    description = "Radium Download Manager Native Messaging Host (Compatibility)"
     path = $HostExePath
     type = "stdio"
     allowed_extensions = @(
@@ -254,16 +286,23 @@ $firefoxManifest = [ordered]@{
 }
 $firefoxJson = $firefoxManifest | ConvertTo-Json -Depth 5
 Write-Utf8NoBom -FilePath $firefoxManifestPath -Content $firefoxJson
-Write-Host "[+] Wrote Firefox manifest (UTF-8 no BOM): $firefoxManifestPath" -ForegroundColor Green
+Write-Host "[+] Wrote Legacy Flux Firefox manifest (UTF-8 no BOM): $firefoxManifestPath" -ForegroundColor Green
 
 # 7. Register HKCU Keys for Browsers
 Write-Host "`n==> Registering Browser Native Messaging Keys in HKCU..." -ForegroundColor Cyan
 
 $targets = @(
-    @{ Name = "Google Chrome"; Key = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $chromiumManifestPath },
-    @{ Name = "Microsoft Edge"; Key = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $chromiumManifestPath },
-    @{ Name = "Brave Browser"; Key = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $chromiumManifestPath },
-    @{ Name = "Mozilla Firefox"; Key = "HKCU:\Software\Mozilla\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $firefoxManifestPath }
+    # Primary Radium registrations
+    @{ Name = "Google Chrome (Primary)"; Key = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.radium.downloadmanager"; Manifest = $radiumChromiumManifestPath },
+    @{ Name = "Microsoft Edge (Primary)"; Key = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.radium.downloadmanager"; Manifest = $radiumChromiumManifestPath },
+    @{ Name = "Brave Browser (Primary)"; Key = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.radium.downloadmanager"; Manifest = $radiumChromiumManifestPath },
+    @{ Name = "Mozilla Firefox (Primary)"; Key = "HKCU:\Software\Mozilla\NativeMessagingHosts\com.radium.downloadmanager"; Manifest = $radiumFirefoxManifestPath },
+
+    # Compatibility Flux registrations
+    @{ Name = "Google Chrome (Flux Compatibility)"; Key = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $chromiumManifestPath },
+    @{ Name = "Microsoft Edge (Flux Compatibility)"; Key = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $chromiumManifestPath },
+    @{ Name = "Brave Browser (Flux Compatibility)"; Key = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $chromiumManifestPath },
+    @{ Name = "Mozilla Firefox (Flux Compatibility)"; Key = "HKCU:\Software\Mozilla\NativeMessagingHosts\com.flux.downloadmanager"; Manifest = $firefoxManifestPath }
 )
 
 foreach ($alias in @("org.flux.native", "org.openidm.native")) {
