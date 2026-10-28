@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="assets/branding/RDM_Logo.svg" alt="Radium Download Manager Official Logo" width="128" height="128">
+</p>
+
+<p align="center">
   <picture>
     <img alt="Radium Download Manager" src="https://img.shields.io/badge/RADIUM-DOWNLOAD%20MANAGER-e03131?style=for-the-badge&logo=windows11&logoColor=white" height="42">
   </picture>
