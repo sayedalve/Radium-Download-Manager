@@ -209,7 +209,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 8px 10px;
+  min-height: 36px;
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 500;
@@ -236,7 +237,8 @@ body {
 
 .tab-btn:focus-visible {
   outline: 2px solid var(--accent-coral);
-  outline-offset: -1px;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px rgba(255, 79, 87, 0.25);
 }
 
 .tab-count {
@@ -423,7 +425,8 @@ body {
 
 /* Quality Selector */
 .quality-select {
-  padding: 6px 9px;
+  min-height: 36px;
+  padding: 7px 10px;
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-control);
@@ -455,7 +458,8 @@ body {
 }
 
 .dl-btn {
-  padding: 7px 13px;
+  min-height: 36px;
+  padding: 8px 14px;
   border-radius: 6px;
   border: 1px solid var(--accent-coral);
   background: var(--accent-coral);
@@ -480,7 +484,8 @@ body {
 
 .dl-btn:focus-visible {
   outline: 2px solid var(--accent-coral);
-  outline-offset: 1px;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(255, 79, 87, 0.25);
 }
 
 .dl-btn:disabled {

@@ -29,20 +29,20 @@
   </header>
 
   <section class="toolbar" aria-label="Media Filter Controls">
-    <div class="filter-tabs" role="tablist">
-      <button type="button" class="tab-btn active" data-filter="all" role="tab" aria-selected="true">
+    <div class="filter-tabs" role="tablist" aria-label="Filter media categories">
+      <button type="button" class="tab-btn active" id="tab-all" data-filter="all" role="tab" aria-selected="true" aria-controls="mediaList" tabindex="0">
         <span>All</span>
         <span id="countAll" class="tab-count">0</span>
       </button>
-      <button type="button" class="tab-btn" data-filter="stream" role="tab" aria-selected="false">
+      <button type="button" class="tab-btn" id="tab-stream" data-filter="stream" role="tab" aria-selected="false" aria-controls="mediaList" tabindex="-1">
         <span>Streams (HLS/DASH)</span>
         <span id="countStream" class="tab-count">0</span>
       </button>
-      <button type="button" class="tab-btn" data-filter="direct" role="tab" aria-selected="false">
+      <button type="button" class="tab-btn" id="tab-direct" data-filter="direct" role="tab" aria-selected="false" aria-controls="mediaList" tabindex="-1">
         <span>Direct Files</span>
         <span id="countDirect" class="tab-count">0</span>
       </button>
-      <button type="button" class="tab-btn" data-filter="links" role="tab" aria-selected="false">
+      <button type="button" class="tab-btn" id="tab-links" data-filter="links" role="tab" aria-selected="false" aria-controls="mediaList" tabindex="-1">
         <span>Page Links</span>
         <span id="countLinks" class="tab-count">0</span>
       </button>

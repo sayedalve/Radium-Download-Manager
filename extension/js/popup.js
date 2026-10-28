@@ -98,7 +98,7 @@ function renderDetectedMediaList(candidates, options = {}) {
           </div>
         </div>
         <div class="media-actions">
-          <button class="dl-btn dl-link-btn" data-url="${safeUrl}" data-name="${safeName}">${desktopConnected ? "Download in Radium" : "Browser Download"}</button>
+          <button class="dl-btn dl-link-btn" data-url="${safeUrl}" data-name="${safeName}" aria-label="${desktopConnected ? 'Download ' + safeName + ' in Radium' : 'Download ' + safeName + ' in browser'}">${desktopConnected ? "Download in Radium" : "Browser Download"}</button>
         </div>
       </div>`;
     }).join("\n");
@@ -198,7 +198,7 @@ function renderDetectedMediaList(candidates, options = {}) {
       </div>
       <div class="media-actions">
         ${qualityDropdownHtml}
-        <button class="${btnClass}" data-url="${escapeHtml(item.url)}" data-id="${escapeHtml(item.candidateId)}">${actionLabel}</button>
+        <button class="${btnClass}" data-url="${escapeHtml(item.url)}" data-id="${escapeHtml(item.candidateId)}" aria-label="${escapeHtml(actionLabel)}: ${safeName}">${actionLabel}</button>
       </div>
     </div>`;
   }).join("\n");
@@ -605,20 +605,46 @@ function initPopupUI() {
     }
   });
 
-  // Filter tab buttons
-  filterTabs.forEach(tab => {
+  // Filter tab buttons with WAI-ARIA arrow navigation
+  function setActiveTab(tab, moveFocus = false) {
+    if (!tab) return;
+    filterTabs.forEach(t => {
+      t.classList.remove("active");
+      t.setAttribute("aria-selected", "false");
+      t.setAttribute("tabindex", "-1");
+    });
+    tab.classList.add("active");
+    tab.setAttribute("aria-selected", "true");
+    tab.setAttribute("tabindex", "0");
+    if (moveFocus) tab.focus();
+
+    activeFilterMode = tab.getAttribute("data-filter") || "all";
+    if (activeFilterMode === "links" && currentTabLinks.length === 0) {
+      fetchPageLinks();
+    }
+    refreshListDisplay();
+  }
+
+  filterTabs.forEach((tab, idx) => {
     tab.addEventListener("click", () => {
-      filterTabs.forEach(t => {
-        t.classList.remove("active");
-        t.setAttribute("aria-selected", "false");
-      });
-      tab.classList.add("active");
-      tab.setAttribute("aria-selected", "true");
-      activeFilterMode = tab.getAttribute("data-filter") || "all";
-      if (activeFilterMode === "links" && currentTabLinks.length === 0) {
-        fetchPageLinks();
+      setActiveTab(tab, false);
+    });
+
+    tab.addEventListener("keydown", (ev) => {
+      let targetIdx = -1;
+      if (ev.key === "ArrowRight" || ev.key === "ArrowDown") {
+        targetIdx = (idx + 1) % filterTabs.length;
+      } else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") {
+        targetIdx = (idx - 1 + filterTabs.length) % filterTabs.length;
+      } else if (ev.key === "Home") {
+        targetIdx = 0;
+      } else if (ev.key === "End") {
+        targetIdx = filterTabs.length - 1;
       }
-      refreshListDisplay();
+      if (targetIdx >= 0) {
+        ev.preventDefault();
+        setActiveTab(filterTabs[targetIdx], true);
+      }
     });
   });
 
