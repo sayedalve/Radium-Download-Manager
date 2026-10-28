@@ -7619,10 +7619,44 @@ void PaintMainWindow(HWND hwnd, DesktopView& view) {
     auto rows = needs_rows ? view.BuildVisibleTaskRows(view.GetScrollOffset(), geom.task_rows.size()) : std::vector<FormattedTaskRow>{};
     if (needs_rows && rows.empty()) {
         RECT empty_rc = ToWinRect(geom.table_body_rect);
+        int empty_h = empty_rc.bottom - empty_rc.top;
+        int empty_w = empty_rc.right - empty_rc.left;
+        int center_y = empty_rc.top + empty_h / 2;
+        int box_w = std::min(DesignSystem::ScaleForDpi(480, m.dpi), std::max(DesignSystem::ScaleForDpi(280, m.dpi), empty_w - 60));
+        int box_left = empty_rc.left + (empty_w - box_w) / 2;
+
+        // Card container for empty state
+        RECT card_rc{box_left, center_y - DesignSystem::ScaleForDpi(80, m.dpi),
+                     box_left + box_w, center_y + DesignSystem::ScaleForDpi(75, m.dpi)};
+        DrawRoundedBoxGdi(hdc, card_rc, DesignSystem::ScaleForDpi(12, m.dpi),
+                          pal.surface_primary, pal.border_subtle, 1);
+
+        // Heading title
+        RECT title_rc{card_rc.left + 16, card_rc.top + DesignSystem::ScaleForDpi(16, m.dpi),
+                      card_rc.right - 16, card_rc.top + DesignSystem::ScaleForDpi(42, m.dpi)};
+        SelectObject(hdc, hFontBold);
+        SetTextColor(hdc, pal.text_primary.ToWin32ColorRef());
+        std::wstring title_str = (view.GetSelectedCategory() == SidebarCategory::kAllDownloads) ? L"No Downloads in Queue" : L"No Items in this Category";
+        DrawTextW(hdc, title_str.c_str(), -1, &title_rc, DT_CENTER | DT_TOP | DT_SINGLELINE);
+
+        // Subtitle guidance message
+        RECT msg_rc{card_rc.left + 20, card_rc.top + DesignSystem::ScaleForDpi(44, m.dpi),
+                    card_rc.right - 20, card_rc.top + DesignSystem::ScaleForDpi(96, m.dpi)};
         SelectObject(hdc, hFontBody);
         SetTextColor(hdc, pal.text_secondary.ToWin32ColorRef());
         std::wstring emsg = Utf8ToW(view.GetEmptyStateMessage());
-        DrawTextW(hdc, emsg.c_str(), -1, &empty_rc, DT_CENTER | DT_VCENTER | DT_WORDBREAK);
+        DrawTextW(hdc, emsg.c_str(), -1, &msg_rc, DT_CENTER | DT_TOP | DT_WORDBREAK);
+
+        // Action hint pill / shortcut
+        RECT hint_rc{card_rc.left + (box_w - DesignSystem::ScaleForDpi(200, m.dpi)) / 2,
+                     card_rc.bottom - DesignSystem::ScaleForDpi(38, m.dpi),
+                     card_rc.left + (box_w + DesignSystem::ScaleForDpi(200, m.dpi)) / 2,
+                     card_rc.bottom - DesignSystem::ScaleForDpi(12, m.dpi)};
+        DrawRoundedBoxGdi(hdc, hint_rc, DesignSystem::ScaleForDpi(6, m.dpi),
+                          pal.surface_hover, pal.border_subtle, 1);
+        SelectObject(hdc, hFontSmallBold);
+        SetTextColor(hdc, pal.accent_primary.ToWin32ColorRef());
+        DrawTextW(hdc, L"Press Ctrl+N to Add URL", -1, &hint_rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     } else {
         for (size_t i = 0; i < rows.size() && i < geom.task_rows.size(); ++i) {
             const auto& rl = geom.task_rows[i];
@@ -7706,8 +7740,27 @@ void PaintMainWindow(HWND hwnd, DesktopView& view) {
                 }
                 int fill_w = static_cast<int>(static_cast<double>(bar_max_w) * disp_frac);
                 if (fill_w > 0) {
+                    ColorRgba fill_col = r.progress_fill_color;
+                    // For actively downloading tasks, apply a subtle live pulse brightness
+                    if (r.state == TaskState::kDownloading) {
+                        uint64_t tick_now = GetTickCount64();
+                        float pulse_t = static_cast<float>((tick_now / 20) % 50) / 50.0f;
+                        float wave = (pulse_t <= 0.5f) ? (pulse_t * 2.0f) : ((1.0f - pulse_t) * 2.0f);
+                        fill_col = fill_col.Interpolate(pal.accent_hover, wave * 0.4f);
+                    }
                     RECT fill_rc{bar_x, bar_y, bar_x + fill_w, bar_y + bar_h};
-                    FillRectSolid(hdc, fill_rc, r.progress_fill_color);
+                    FillRectSolid(hdc, fill_rc, fill_col);
+
+                    // Multi-segment division lines when actively downloading with multiple segments
+                    if (r.state == TaskState::kDownloading && bar_max_w >= 60) {
+                        for (int seg = 1; seg <= 3; ++seg) {
+                            int seg_x = bar_x + (bar_max_w * seg) / 4;
+                            if (seg_x < bar_x + fill_w) {
+                                RECT seg_rc{seg_x, bar_y, seg_x + 1, bar_y + bar_h};
+                                FillRectSolid(hdc, seg_rc, ColorRgba{0x10, 0x10, 0x14, 180});
+                            }
+                        }
+                    }
                 }
             }
             RECT pct_rc{bar_x + bar_max_w + pct_gap, bar_y - 4,
