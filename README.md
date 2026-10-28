@@ -7,9 +7,9 @@
 <h1 align="center">Radium Download Manager</h1>
 
 <p align="center">
-  <b>Modern, open-source Windows 11 download manager and high-performance IDM alternative.</b><br>
-  Built with C++20 and Win32, featuring an adaptive segmented HTTP/HTTPS engine, BitTorrent v1, HLS/DASH stream pipeline, and Manifest V3 browser integration.<br>
-  Engineered for transparent, measured performance with lower memory and zero background bloat.
+  <b>Fast, simple Windows 11 download manager with built-in video fetching.</b><br>
+  Accelerate multi-connection file downloads and effortlessly capture videos from any browser (HLS, DASH, and web streams).<br>
+  Lightweight native C++20 &amp; Win32 app with zero Electron bloat, minimal RAM, and no background noise.
 </p>
 
 <p align="center">
@@ -48,7 +48,7 @@
 
 ## Quick Overview
 
-Radium Download Manager is a modern, native Windows 11 open-source alternative to Internet Download Manager (IDM). It delivers fast multi-connection segmented downloads, integrated BitTorrent v1, and media stream capture without Electron bloat, adware, or intrusive background services.
+Radium is a lightweight, high-speed Windows 11 download manager designed to replace bulky, ad-filled alternatives. It combines high-speed multi-connection file downloads with one-click browser video fetching and stream muxing.
 
 <table>
   <tr>
