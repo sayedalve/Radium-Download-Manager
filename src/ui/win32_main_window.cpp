@@ -2411,27 +2411,28 @@ std::vector<SettingItemView> DesktopView::BuildAllSettingItems() const {
     // 8. About & Diagnostics
     auto ab = GetAboutDialogView();
     add_item(
-        "diag_version", SettingsCategory::kAboutAndDiagnostics, "Application & Environment",
-        ab.app_name + " v" + ab.version,
-        "License: " + ab.license + "  |  Platform: " + ab.target_platform,
+        "diag_app_summary", SettingsCategory::kAboutAndDiagnostics, "About Radium",
+        "Radium Download Manager",
+        "Fast, clean download manager and browser video grabber for Windows 11. Multi-connection acceleration with zero bloat.",
         SettingControlType::kDiagnosticReadOnly,
         "v" + ab.version, "v" + ab.version, true, false);
     add_item(
-        "diag_nm3u8dl", SettingsCategory::kAboutAndDiagnostics, "Stream Pipeline Workers",
-        "Stream Manifest & Segment Worker (N_m3u8DL-RE)",
-        bstat.nm3u8dl_path,
+        "diag_video_fetch", SettingsCategory::kAboutAndDiagnostics, "Video & Stream Fetching",
+        "Browser Video Sniffer & Stream Pipeline",
+        "Automatically sniffs video streams (HLS m3u8, DASH mpd, and web videos) via the browser extension and muxes quality streams with N_m3u8DL-RE & FFmpeg.",
         SettingControlType::kDiagnosticReadOnly,
-        bstat.nm3u8dl_available ? "Ready" : "Missing", "Ready", bstat.nm3u8dl_available, false);
+        (bstat.nm3u8dl_available && bstat.ffmpeg_available) ? "Active" : "Workers Needed", "Active",
+        bstat.nm3u8dl_available && bstat.ffmpeg_available, false);
     add_item(
-        "diag_ffmpeg", SettingsCategory::kAboutAndDiagnostics, "Stream Pipeline Workers",
-        "Container Multiplexer (FFmpeg)",
-        bstat.ffmpeg_path,
+        "diag_version", SettingsCategory::kAboutAndDiagnostics, "System & License",
+        "Platform & License",
+        "Windows 11 x64 (Native Win32 C++20)  |  " + ab.license,
         SettingControlType::kDiagnosticReadOnly,
-        bstat.ffmpeg_available ? "Ready" : "Missing", "Ready", bstat.ffmpeg_available, false);
+        "Active", "Active", true, false);
     add_item(
-        "diag_storage", SettingsCategory::kAboutAndDiagnostics, "Storage & Persistence",
-        "SQLite WAL State Database",
-        m_controller.GetConfig().state_db_path.string(),
+        "diag_storage", SettingsCategory::kAboutAndDiagnostics, "System & License",
+        "Queue Database",
+        "SQLite WAL active at: " + m_controller.GetConfig().state_db_path.string(),
         SettingControlType::kDiagnosticReadOnly,
         "WAL Active", "WAL Active", true, false);
 
