@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM / Flux — RTSP, MMS & Live Media Stream Adapter (FFmpeg Out-of-Process Worker)
 #pragma once
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Live Verification Suite for Flux Download Interception & Win32 New Download Dialog
 # Validates the 12 required test cases against the live running Desktop Application & NMH
 

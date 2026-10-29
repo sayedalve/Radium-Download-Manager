@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — Brisk HTTP Segmented Download Engine
 // Direct integration of Brisk's HttpDownloadEngine & HttpDownloadConnection mechanisms:
 //   - Dynamic Connection Spawning (1 -> max_connections)

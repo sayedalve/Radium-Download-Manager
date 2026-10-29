@@ -70,4 +70,4 @@ Every pull request must satisfy the following gates before merge:
 
 ## 6. Contribution Licensing
 
-By submitting a contribution to this repository, you agree that your contribution is licensed under the project's primary license (**GNU General Public License v3.0 or later**, `GPL-3.0-or-later`), as detailed in [docs/LICENSE_REVIEW.md](docs/LICENSE_REVIEW.md).
+By submitting a contribution to this repository, you agree that your contribution is licensed under the project's primary license (**Apache License, Version 2.0**, `Apache-2.0`), as detailed in [LICENSE](LICENSE).

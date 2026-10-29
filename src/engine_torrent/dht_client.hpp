@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM / Flux — BitTorrent DHT Client (BEP 5 Kademlia DHT Iterative Peer Discovery)
 #pragma once
 

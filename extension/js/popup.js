@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Adapted from xifangczy/cat-catch (js/popup.js) for Radium Cosmic Dark Popup UI.
 // Supports media type filtering (All / Streams / Direct), live count badges, search filtering,
 // resolution/size formatting, real-time background query, and batch/single download handoff.

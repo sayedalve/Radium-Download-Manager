@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — N_m3u8DL-RE Stream Download Adapter, YouTube Extractor & Managed Worker Process Supervisor
 // Integrates nilaoda/N_m3u8DL-RE (v0.3.0-beta), yt-dlp & FFmpeg via Job Objects / Process Groups
 // and ACL-restricted @job.rsp response files.

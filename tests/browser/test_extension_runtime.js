@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium Download Manager -- Automated Browser Extension Runtime Verification Suite
 // Uses Playwright with real unpacked Chromium Manifest V3 extension,
 // spins up a local fixture HTTP server, and verifies:

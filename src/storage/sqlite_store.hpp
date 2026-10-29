@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — Persistent SQLite 3 Storage Layer (WAL Mode + DPAPI/AES Secret Protection)
 // Implements DATA_MODEL_AND_STORAGE.md, ADR-0007, NFR-005, NFR-009.
 #pragma once

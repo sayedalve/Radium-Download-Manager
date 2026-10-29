@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copy the Chromium extension to a per-user path that survives repository/build cleanup.
 [CmdletBinding()]
 param(

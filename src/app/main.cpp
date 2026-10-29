@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium -- Main Desktop GUI, CLI & Daemon Application Entry Point (radium)
 // Default launch (no arguments):
 //   Starts the background IPC server and launches the Radium Desktop GUI application window.

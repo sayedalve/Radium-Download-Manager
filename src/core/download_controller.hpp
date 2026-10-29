@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — Unified Download Controller, Queue Scheduler & Settings Service
 // Combines ordinary HTTP/HTTPS downloads (Brisk engine) and HLS/DASH streams (N_m3u8DL-RE worker)
 // into a single persistent queue and unified task model.

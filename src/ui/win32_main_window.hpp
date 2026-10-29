@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium Download Manager — Windows 11 Cosmic Dark Desktop Interface, Hit-Testing,
 // Interaction Controller, Cosmic Starfield & Professional Settings Center
 #pragma once
@@ -296,7 +296,7 @@ struct BrowserIntegrationStatusView {
 struct AboutDialogView {
     std::string app_name{"Radium Download Manager"};
     std::string version{FLUX_VERSION_STRING};
-    std::string license{"GPL-3.0-or-later"};
+    std::string license{"Apache-2.0"};
     std::string target_platform{"Windows 11 x64 (Native Win32 + Direct2D/GDI)"};
     std::vector<std::string> upstream_attributions;
 };

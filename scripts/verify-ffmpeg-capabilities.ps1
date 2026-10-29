@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- FFmpeg Capability and Requirement Auditor
 #
 # Inspects an ffmpeg.exe binary and verifies that all demuxers, muxers, parsers,

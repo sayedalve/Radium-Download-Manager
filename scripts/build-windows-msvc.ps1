@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- Reproducible Windows 11 x64 Portable Build, PE32+ Verification & Test Pipeline
 # Detects MSVC / Windows SDK / CMake, compiles flux.exe (WIN32 GUI subsystem),
 # flux-nmh.exe (CUI subsystem), and flux_unit_tests.exe, validates PE32+ x64 headers,

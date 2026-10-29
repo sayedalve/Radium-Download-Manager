@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # OpenIDM — Stream Worker (Native C++ & Upstream N_m3u8DL-RE) Integration Test Suite
 # Tests HLS master playlists, variant selection, DASH streams, separate audio/video,
 # subtitles, custom request headers, retries, cancellation, output muxing, and AES-128 decryption.

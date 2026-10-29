@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Adapted from xifangczy/cat-catch (js/content-script.js) & Brisk Browser Extension.
 // Observes <video> elements (including dynamic insertion & resize), positions the closed Shadow DOM
 // "Download with Radium" cosmic pill badge, provides real-time status/error feedback on click, intercepts link clicks

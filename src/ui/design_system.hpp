@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium Download Manager — Coral Dark UI Design System & High-DPI Metrics
 // Defines the Coral Dark color palette, 4px spacing grid, Segoe UI typography ramp,
 // High-DPI scaling math, minimum window constraints, geometric vector icons, and

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — Native C++20 Stream Worker Executable (N_m3u8DL-RE Compatible + YouTube/Site Extractor)
 // Supports:
 //   - @args.rsp response file parsing with quoted arguments

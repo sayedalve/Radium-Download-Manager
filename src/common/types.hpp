@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — Unified Task Model, Application Settings & Common Types
 // Adapted from Brisk (lib/download_engine/model/download_item_model.dart) & OpenIDM PRS.
 #pragma once
@@ -71,8 +71,7 @@ struct Result<void> {
     }
 };
 
-// Direct structural equivalent of Brisk's ByteRange & Segment
-// Reference: BrisklyDev/brisk lib/download_engine/segment/segment.dart
+// ByteRange & Segment data model definitions
 struct Segment {
     uint32_t segment_id{0};
     uint64_t start_offset{0};

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium Download Manager — Automated C++20 Unit & Regression Test Suite
 // Verifies PathSanitizer, Dynamic Worker Discovery, Disk Space Guard, Logger Redaction,
 // CryptoUtils, Brisk SegmentScheduler + Stolen Segment Rollback, SqliteStore + Crash Recovery,

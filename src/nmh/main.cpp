@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium -- Browser Native Messaging Host (radium-nmh)
 // Bridges 32-bit length-prefixed JSON messages on stdin/stdout from Chrome/Edge/Brave/Firefox
 // to the Radium IPC Server (Named Pipe on Windows 11, UNIX Domain Socket on POSIX),

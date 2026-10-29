@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium Download Manager -- Positive Native Messaging Integration Test
 // Runs on a clean Windows machine after Inno Setup silent installation.
 // Loads the real unpacked Radium extension in Chromium, sends native messaging

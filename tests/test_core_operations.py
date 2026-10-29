@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """
 Radium Download Manager - Core Operations, Pause/Resume, Concurrency & Persistence Verification
 Executes directly against built Radium binaries (or installed binaries) to verify:

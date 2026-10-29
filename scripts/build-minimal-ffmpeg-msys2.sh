@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- Minimal Windows x64 FFmpeg Build (MSYS2/MinGW-w64)
 #
 # Run inside MSYS2 MINGW64 shell:

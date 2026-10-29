@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Flux Download Manager -- Release Security & Distribution Verification Script
 # Audits release checksums, dependency hashes, PE32+ headers, Authenticode signatures,
 # credential redaction, and path sanitization security invariants.

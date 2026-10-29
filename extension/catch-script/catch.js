@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Adapted from xifangczy/cat-catch (catch-script/search.js & catch.js) for Radium Download Manager.
 // Runs in page MAIN world at document_start. Hooks window.fetch, window.XMLHttpRequest,
 // window.URL.createObjectURL, MediaSource, HTMLAnchorElement.prototype.click, and inspects

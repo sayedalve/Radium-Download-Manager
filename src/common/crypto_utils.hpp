@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — File Checksum Verification (SHA-256 / MD5) & Credential Protection (DPAPI / AES-256-GCM)
 // Implements FR-007, NFR-009, ADR-0007.
 #pragma once

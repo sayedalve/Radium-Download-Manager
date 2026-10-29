@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM / Flux — BitTorrent Engine Coordinator
 // Concurrent peer swarm, BEP 9 metadata exchange, BEP 15 UDP trackers, DHT peer discovery, Seeding & Restart Recovery
 #include "engine_torrent/torrent_engine.hpp"

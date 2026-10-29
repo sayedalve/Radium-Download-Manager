@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- Upstream Stream Worker Provisioning Script (v0.3.1)
 # Downloads and cryptographically verifies upstream stream workers:
 #  1. nilaoda/N_m3u8DL-RE (v0.3.0-beta win-x64) - MIT License

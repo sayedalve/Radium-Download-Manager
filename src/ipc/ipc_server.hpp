@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — Local IPC Server & JSON-RPC 2.0 Dispatcher
 // Uses Windows Named Pipe (\\.\pipe\OpenIDM_IPC_<UserSID>) on Windows 11 and
 // user-ACL-restricted UNIX Domain Socket (/tmp/openidm_ipc_<uid>.sock, chmod 0600) on POSIX.

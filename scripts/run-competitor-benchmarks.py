@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Flux Download Manager — Competitor Benchmark Runner & Analysis Harness
 # Executes controlled, repeatable performance comparisons on Windows runner against:
 #   1. Flux Download Manager (8 connections)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 #include "ui/win32_main_window.hpp"
 
 #include "brisk_engine/http_client.hpp"
@@ -3230,10 +3230,11 @@ BrowserIntegrationStatusView DesktopView::GetBrowserIntegrationStatus() const {
 AboutDialogView DesktopView::GetAboutDialogView() const {
     AboutDialogView a;
     a.upstream_attributions = {
-        "Brisk Download Manager (https://github.com/BrisklyDev/brisk) — GPL-3.0-or-later",
-        "Cat Catch Media Sniffer (https://github.com/xifangczy/cat-catch) — GPL-3.0",
-        "N_m3u8DL-RE Stream Downloader (https://github.com/nilaoda/N_m3u8DL-RE) — MIT",
-        "FFmpeg Media Muxer (https://ffmpeg.org) — LGPL-2.1 / GPL-3.0"
+        "N_m3u8DL-RE Stream Downloader (https://github.com/nilaoda/N_m3u8DL-RE) - MIT",
+        "FFmpeg Media Muxer (https://ffmpeg.org) - LGPL-2.1+ / LGPL-3.0",
+        "Microsoft WIL (https://github.com/microsoft/wil) - MIT",
+        "SQLite (https://www.sqlite.org) - Public Domain",
+        "nlohmann/json (https://github.com/nlohmann/json) - MIT"
     };
     return a;
 }

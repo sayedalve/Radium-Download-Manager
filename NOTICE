@@ -1,0 +1,26 @@
+Radium Download Manager
+Copyright 2026 Sayed Alve and Radium Contributors.
+
+This product includes software developed at
+Radium Download Manager (https://github.com/sayedalve/Radium-Download-Manager).
+
+This product incorporates or interacts with the following open-source software:
+
+- SQLite (https://www.sqlite.org/)
+  Dedicated to the Public Domain.
+
+- Microsoft Windows Implementation Libraries (WIL) (https://github.com/microsoft/wil)
+  Copyright (c) Microsoft Corporation.
+  Licensed under the MIT License.
+
+- JSON for Modern C++ (nlohmann/json) (https://github.com/nlohmann/json)
+  Copyright (c) 2013-2025 Niels Lohmann
+  Licensed under the MIT License.
+
+- N_m3u8DL-RE (https://github.com/nilaoda/N_m3u8DL-RE)
+  Copyright (c) 2021-2024 nilaoda
+  Invoked out-of-process under the MIT License.
+
+- FFmpeg (https://ffmpeg.org/)
+  Copyright (c) 2000-2026 the FFmpeg developers
+  Invoked out-of-process under LGPL-2.1-or-later / LGPL-3.0.

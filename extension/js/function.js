@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Adapted from xifangczy/cat-catch (js/function.js) for Radium Download Manager.
 // Implements explicit typed resource classification (HLS_MANIFEST, DASH_MANIFEST,
 // DIRECT_PROGRESSIVE, YOUTUBE_EXTRACTION, UNSUPPORTED), webpage watch URL filtering,

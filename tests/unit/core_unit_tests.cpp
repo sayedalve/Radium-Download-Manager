@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Dedicated Unit Test Suite for Radium Core Engine Components:
 //   - PathSanitizer (Path traversal, Windows reserved names, ADS, Unicode)
 //   - JsonMini (RFC 8259 parser, primitives, arrays, objects, malformed rejection)

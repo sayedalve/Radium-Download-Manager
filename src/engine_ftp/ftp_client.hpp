@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM / Flux — High-Performance Native WinSock2 FTP Engine
 // Implements RFC 959 (FTP), RFC 2428 (IPv6/EPSV), and RFC 3659 (REST/SIZE).
 // FTPS is explicitly rejected (ERR_FTPS_UNSUPPORTED) to prevent unencrypted plaintext transmission.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Automated Phase 7 & Phase 9 Browser Extension Verification Suite (11 Suites)
 // Tests Cat Catch media detection, HLS/DASH discovery, master/child deduplication,
 // segment suppression, per-site exclusion, DOM overlay attachment & fullscreen repositioning,

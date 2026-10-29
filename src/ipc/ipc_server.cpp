@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 #include "ipc/ipc_server.hpp"
 #include "common/path_sanitizer.hpp"
 #include "common/version.hpp"

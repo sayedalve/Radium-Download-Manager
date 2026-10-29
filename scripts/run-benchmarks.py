@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager — Benchmark Runner & Metrics Collector
 # Executes integration benchmarks, validates resource budgets,
 # and persists results to benchmarks/latest_metrics.json.

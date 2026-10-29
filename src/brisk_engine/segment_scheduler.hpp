@@ -1,8 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// OpenIDM — Brisk Dynamic Connection Spawning & Work-Stealing Range Splitter
-// Adapted from BrisklyDev/brisk:
-//   - lib/download_engine/engine/http_download_engine.dart
-//   - lib/download_engine/segment/segment.dart
+// SPDX-License-Identifier: Apache-2.0
+// Dynamic Connection Spawning & Work-Stealing Range Splitter
 #pragma once
 
 #include <atomic>

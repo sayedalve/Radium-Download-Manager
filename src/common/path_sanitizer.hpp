@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium -- Path Sanitization, Content-Disposition Parsing, Worker Discovery & Disk Space Checks
 // Implements NFR-006, FR-001, FR-026, THREAT-003, BUG-005, BUG-009.
 #pragma once

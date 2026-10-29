@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Lightweight, RFC 8259 compliant JSON parser & builder for OpenIDM IPC & meta.json
 #pragma once
 

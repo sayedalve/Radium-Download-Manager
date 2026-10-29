@@ -4,23 +4,7 @@ Radium Download Manager incorporates or integrates with the following open-sourc
 
 ---
 
-## 1. Brisk Download Manager
-- **Repository:** https://github.com/BrisklyDev/brisk
-- **License:** GNU General Public License v3.0 (GPL-3.0)
-- **Copyright:** (C) BrisklyDev Contributors
-- **Usage:** Dynamic connection spawning and work-stealing byte-range reuse algorithms.
-
----
-
-## 2. Cat Catch (猫抓)
-- **Repository:** https://github.com/xifangczy/cat-catch
-- **License:** GNU General Public License v3.0 (GPL-3.0)
-- **Copyright:** (C) xifangczy and contributors
-- **Usage:** Browser extension media detection rules and MIME-type classification.
-
----
-
-## 3. N_m3u8DL-RE
+## 1. N_m3u8DL-RE
 - **Repository:** https://github.com/nilaoda/N_m3u8DL-RE
 - **License:** MIT License
 - **Copyright:** (C) 2021-2024 nilaoda
@@ -46,7 +30,7 @@ SOFTWARE.
 
 ---
 
-## 4. FFmpeg (Minimal Stream Muxer)
+## 2. FFmpeg (Minimal Stream Muxer)
 - **Website:** https://ffmpeg.org/
 - **Pinned Version:** 7.1 (`n7.1`, Commit: `04706f3`, Tarball: `ffmpeg-7.1.tar.xz`)
 - **License:** GNU Lesser General Public License v2.1 or later (LGPL-2.1-or-later) / GNU Lesser General Public License v3.0 (LGPL-3.0) via `--enable-version3`
@@ -63,14 +47,14 @@ SOFTWARE.
 
 ---
 
-## 5. SQLite
+## 3. SQLite
 - **Website:** https://www.sqlite.org/
 - **License:** Public Domain
 - **Usage:** Embedded transactional task state persistence and queue metadata storage.
 
 ---
 
-## 6. Microsoft Windows Implementation Libraries (WIL)
+## 4. Microsoft Windows Implementation Libraries (WIL)
 - **Repository:** https://github.com/microsoft/wil
 - **License:** MIT License
 - **Copyright:** (C) Microsoft Corporation
@@ -96,7 +80,7 @@ SOFTWARE.
 
 ---
 
-## 7. JSON for Modern C++ (nlohmann/json)
+## 5. JSON for Modern C++ (nlohmann/json)
 - **Repository:** https://github.com/nlohmann/json
 - **License:** MIT License
 - **Copyright:** (C) 2013-2025 Niels Lohmann

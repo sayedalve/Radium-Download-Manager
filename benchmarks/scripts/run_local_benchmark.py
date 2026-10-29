@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Run repeatable Radium HTTP tests against the local benchmark fixture.
 
 The result JSON retains per-request engine events and per-handler fixture

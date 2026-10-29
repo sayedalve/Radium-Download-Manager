@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """
 generate_branding_assets.py - Reproducible asset generation from master SVG (assets/branding/RDM_Logo.svg)
 Generates:

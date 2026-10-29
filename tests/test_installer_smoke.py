@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Flux Download Manager -- Clean Installation Smoke & Integration Test Suite
 # Validates silent Inno Setup installation, PE32+ metadata, worker binaries,
 # browser extension assets, Native Messaging manifests, registry keys,

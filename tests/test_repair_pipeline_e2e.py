@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- End-to-End Browser Detection & Download Pipeline Verification Suite
 # Tests all 10 deterministic fixtures required by Section 4 & Section 7:
 #   1. Direct PDF download (click -> click metadata -> download event -> download.offer -> Brisk engine -> valid PDF)

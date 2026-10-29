@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM — HTTP/1.1 & HTTPS Ranged Client (POSIX Sockets + OpenSSL & Windows WinHTTP)
 // Implements FR-001, FR-002, FR-004, RISK-006, THREAT-005.
 #pragma once

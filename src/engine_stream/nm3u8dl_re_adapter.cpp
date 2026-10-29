@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 #include "engine_stream/nm3u8dl_re_adapter.hpp"
 
 #include "brisk_engine/http_client.hpp"
