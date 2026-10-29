@@ -28,7 +28,7 @@ if ($Clean) {
 }
 
 Write-Host "================================================================="
-Write-Host "   Radium Download Manager v0.3.0 Windows 11 x64 Portable Pipeline "
+Write-Host "   Radium Download Manager v1.0.0 Windows 11 x64 Portable Pipeline "
 Write-Host "================================================================="
 
 # -----------------------------------------------------------------------------

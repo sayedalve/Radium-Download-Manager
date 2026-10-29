@@ -1844,6 +1844,7 @@ std::string DesktopView::SettingsCategoryToLabel(SettingsCategory category) {
         case SettingsCategory::kFileTypes:           return "File Types";
         case SettingsCategory::kNotifications:       return "Notifications";
         case SettingsCategory::kAboutAndDiagnostics: return "About & Diagnostics";
+        case SettingsCategory::kKeyboardShortcuts:   return "Keyboard Shortcuts";
     }
     return "General";
 }
@@ -2408,7 +2409,25 @@ std::vector<SettingItemView> DesktopView::BuildAllSettingItems() const {
         s.show_completion_notification ? "Enabled" : "Muted", "Enabled",
         s.show_completion_notification, s.show_completion_notification != saved.show_completion_notification);
 
-    // 8. About & Diagnostics
+    // 8. Keyboard Shortcuts (read-only; shortcuts are not customizable)
+    const auto add_shortcut = [&](std::string key, std::string action, std::string chord) {
+        add_item(
+            std::move(key), SettingsCategory::kKeyboardShortcuts, "Keyboard Shortcuts",
+            std::move(action), "Supported application shortcut.",
+            SettingControlType::kDiagnosticReadOnly, std::move(chord), "", false, false);
+    };
+    add_shortcut("shortcut_add_download", "Add a download", "Ctrl+N");
+    add_shortcut("shortcut_open_settings", "Open Settings", "Ctrl+,");
+    add_shortcut("shortcut_focus_search", "Focus download search", "Ctrl+K or Ctrl+F");
+    add_shortcut("shortcut_pause_resume", "Pause or resume the selected task", "Space");
+    add_shortcut("shortcut_retry", "Retry the selected task", "F5");
+    add_shortcut("shortcut_open_file", "Open the selected completed file", "Enter");
+    add_shortcut("shortcut_remove_task", "Open task removal confirmation", "Delete");
+    add_shortcut("shortcut_close_settings", "Close Settings Center", "Esc");
+    add_shortcut("shortcut_select_rows", "Move selection between tasks", "Up / Down");
+    add_shortcut("shortcut_select_edges", "Select first or last task", "Home / End");
+
+    // 9. About & Diagnostics
     auto ab = GetAboutDialogView();
     add_item(
         "diag_app_summary", SettingsCategory::kAboutAndDiagnostics, "About Radium",
@@ -2511,7 +2530,8 @@ SettingsCenterViewModel DesktopView::BuildSettingsCenterView() const {
         SettingsCategory::kBrowserIntegration,
         SettingsCategory::kFileTypes,
         SettingsCategory::kNotifications,
-        SettingsCategory::kAboutAndDiagnostics
+        SettingsCategory::kAboutAndDiagnostics,
+        SettingsCategory::kKeyboardShortcuts
     };
 
     int tab_y = vm.sidebar_rect.top + m.space_sm;

@@ -176,6 +176,7 @@ def main():
     parser.add_argument("--install-dir", type=str, default=None, help="Target installation directory")
     parser.add_argument("--dist-dir", type=str, default=None, help="Directory containing release artifacts")
     parser.add_argument("--arch", type=str, default="x64", choices=["x64", "ARM64"], help="Target architecture")
+    parser.add_argument("--expected-version", type=str, default=None, help="Expected application version reported by the installer")
     parser.add_argument("--skip-uninstall", action="store_true", help="Do not run uninstallation test")
     args = parser.parse_args()
 
@@ -280,7 +281,9 @@ def main():
         flux_exe = install_dir / "radium.exe" if (install_dir / "radium.exe").exists() else install_dir / "flux.exe"
         ver_proc = subprocess.run([str(flux_exe), "--version"], capture_output=True, text=True, check=True)
         ver_output = (ver_proc.stdout + "\n" + ver_proc.stderr).strip()
-        assert ("Radium Download Manager" in ver_output or "Radium" in ver_output or "Flux" in ver_output) and ("0.3" in ver_output), (
+        assert ("Radium Download Manager" in ver_output or "Radium" in ver_output or "Flux" in ver_output) and (
+            args.expected_version is None or args.expected_version in ver_output
+        ), (
             f"Unexpected version output: stdout='{ver_proc.stdout}', stderr='{ver_proc.stderr}'"
         )
         first_line = ver_output.splitlines()[0] if ver_output else ""

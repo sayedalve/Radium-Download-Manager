@@ -46,7 +46,7 @@ jobs:
         id: version
         shell: powershell
         run: |
-          $ver = "0.3.1"
+          $ver = "1.0.0"
           $cmakePath = "CMakeLists.txt"
           if (Test-Path $cmakePath) {
             $cmakeContent = Get-Content $cmakePath -Raw

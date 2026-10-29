@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Radium Download Manager -- Package Size Reporting & Budget Audit Script (v0.3.0)
+# Radium Download Manager -- Package Size Reporting & Budget Audit Script (v1.0.0)
 # Measures each packaged component, distinguishes installed disk footprint from
 # compressed ZIP and Inno Setup installer download sizes, and verifies compliance
 # with docs/PERFORMANCE_AND_SIZE_BUDGET.md.

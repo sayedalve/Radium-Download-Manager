@@ -60,7 +60,7 @@ jobs:
             if ($rawRef -match '^v?(\d+\.\d+\.\d+.*)$') {
               $ver = $Matches[1]
             } else {
-              throw "Invalid version tag format: '$rawRef'. Expected semantic version like 'v0.3.1' or '0.3.1'."
+              throw "Invalid version tag format: '$rawRef'. Expected semantic version like 'v1.0.0' or '1.0.0'."
             }
           } else {
             $cmakePath = "CMakeLists.txt"
@@ -322,7 +322,7 @@ jobs:
       - name: Execute Clean Installation Smoke Suite
         shell: powershell
         run: |
-          python tests/test_installer_smoke.py --dist-dir dist
+          python tests/test_installer_smoke.py --dist-dir dist --expected-version "${{ needs.build-and-package-x64.outputs.version }}"
 
       - name: Upload Installation Test Logs
         uses: actions/upload-artifact@v4
@@ -590,7 +590,7 @@ jobs:
       - name: Execute Clean Installation Smoke Suite (ARM64)
         shell: powershell
         run: |
-          python tests/test_installer_smoke.py --dist-dir dist --arch ARM64
+          python tests/test_installer_smoke.py --dist-dir dist --arch ARM64 --expected-version "${{ needs.build-and-package-arm64.outputs.version }}"
 
       - name: Upload Installation Test Logs (ARM64)
         uses: actions/upload-artifact@v4

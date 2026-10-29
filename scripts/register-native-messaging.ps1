@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Radium Download Manager -- Native Messaging Host Per-User Registration Script (v0.3.0)
+# Radium Download Manager -- Native Messaging Host Per-User Registration Script (v1.0.0)
 # Configures HKCU registry keys for Chrome, Edge, Brave, and Firefox without requiring admin rights.
 # Supports portable mode by pointing directly to the local radium-nmh.exe executable.
 

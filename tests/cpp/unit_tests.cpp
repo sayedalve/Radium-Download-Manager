@@ -648,7 +648,7 @@ bool TestProfessionalSettingsCenterValidationAndPersistence() {
         ASSERT_TRUE(view.IsSettingsCenterOpen(), "Settings Center is open");
 
         auto sv = view.BuildSettingsCenterView();
-        ASSERT_TRUE(sv.categories.size() == 8, "Settings Center exposes 8 logical categories");
+        ASSERT_TRUE(sv.categories.size() == 9, "Settings Center exposes 9 logical categories");
         ASSERT_TRUE(!sv.has_unsaved_changes && sv.is_valid, "Clean initial state in Settings Center");
 
         // Test Settings Search across categories
@@ -825,6 +825,17 @@ bool TestKeyboardNavigationAndShortcuts() {
     openidm::DownloadController ctrl(cfg);
     ASSERT_TRUE(ctrl.Initialize().ok(), "Initialize controller for keyboard test");
     openidm::ui::DesktopView view(ctrl);
+
+    view.OpenSettingsCenter(openidm::ui::SettingsCategory::kKeyboardShortcuts);
+    auto settings_view = view.BuildSettingsCenterView();
+    ASSERT_TRUE(settings_view.active_category == openidm::ui::SettingsCategory::kKeyboardShortcuts,
+                "Keyboard Shortcuts is a selectable Settings category");
+    ASSERT_TRUE(settings_view.visible_items.size() == 10,
+                "Settings lists all ten supported shortcut entries");
+    ASSERT_TRUE(settings_view.visible_items.front().value_text == "Ctrl+N" &&
+                settings_view.visible_items.back().value_text == "Home / End",
+                "Settings shortcut entries show implemented key chords");
+    view.CloseSettingsCenter();
 
     for (int i = 1; i <= 3; ++i) {
         openidm::TaskModel t;

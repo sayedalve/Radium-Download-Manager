@@ -63,7 +63,8 @@ enum class SettingsCategory {
     kBrowserIntegration,
     kFileTypes,
     kNotifications,
-    kAboutAndDiagnostics
+    kAboutAndDiagnostics,
+    kKeyboardShortcuts
 };
 
 enum class SettingControlType {

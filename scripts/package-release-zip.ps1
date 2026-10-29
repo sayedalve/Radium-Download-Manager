@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Radium Download Manager -- Windows x64 Release Packaging Script (v0.3.0)
+# Radium Download Manager -- Windows x64 Release Packaging Script (v1.0.0)
 # Assembles standalone portable zip packages (Full and Core editions),
 # performs strict pre-flight binary validation, stages clean extension assets,
 # writes PACKAGE_INFO.json metadata, and updates SHA256SUMS.txt.

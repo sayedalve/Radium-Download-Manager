@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: Apache-2.0
-; Radium Download Manager -- Inno Setup 6 Windows 11 x64 Installer Script (v0.3.0)
+; Radium Download Manager -- Inno Setup 6 Windows 11 x64 Installer Script (v1.0.0)
 ; Installs radium.exe (WIN32 GUI), radium-nmh.exe (CUI Native Messaging Host),
 ; optional stream workers (N_m3u8DL-RE & FFmpeg), browser extension assets, and
 ; registers Native Messaging manifests for Chrome, Edge, Brave, and Firefox.

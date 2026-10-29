@@ -12,13 +12,13 @@
 
 <p align="center">
   <b>Fast, simple Windows 11 download manager with built-in video fetching.</b><br>
-  Accelerate multi-connection file downloads and effortlessly capture videos from any browser (HLS, DASH, and web streams).<br>
+  Accelerate multi-connection file downloads and capture videos from supported browsers (HLS, DASH, and web streams).<br>
   Lightweight native C++20 &amp; Win32 app with zero Electron bloat, minimal RAM, and no background noise.
 </p>
 
 <p align="center">
   <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/sayedalve/Radium-Download-Manager?style=flat-square"></a>
-  <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-x64-1.0.0.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20x64%20(v1.0.0)-0078D4?style=flat-square&logo=windows11"></a>
+  <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20x64%20(v0.3.2)-0078D4?style=flat-square&logo=windows11"></a>
   <img alt="Language: C++20" src="https://img.shields.io/badge/Language-ISO%20C%2B%2B20-00599C?style=flat-square&logo=c%2B%2B">
   <img alt="UI: Native Win32" src="https://img.shields.io/badge/UI-Native%20Win32-22c55e?style=flat-square">
   <img alt="Extension: Manifest V3" src="https://img.shields.io/badge/Extension-Manifest%20V3-eab308?style=flat-square&logo=googlechrome">
@@ -79,19 +79,27 @@ Radium is a lightweight, high-speed Windows 11 download manager designed to repl
 
 ## Downloads & Installation
 
-The latest production release is **[v1.0.0](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v1.0.0)**. Installers and standalone portable packages are available for 64-bit Windows:
+The latest published release is **[v0.3.2](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v0.3.2)**. The repository source is prepared as version `1.0.0`, but that release has not been published yet. These packages are available for 64-bit Windows:
 
 | Package | Architecture | Format | Description |
 | :--- | :---: | :---: | :--- |
-| **Radium Installer (Standard)** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-x64-1.0.0.exe) | Recommended installer for Windows 11 / 10 x64 |
-| **Radium Portable Full** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-v1.0.0-Windows-x64-Full.zip) | Portable package bundling N_m3u8DL-RE & FFmpeg stream workers |
-| **Radium Portable Core** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-v1.0.0-Windows-x64-Core.zip) | Lightweight package (~2 MB) using system PATH for stream tools |
-| **Radium Core Installer** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-x64-Core-1.0.0.exe) | Lightweight installer without bundled stream binaries |
-| **Radium Installer (ARM64)** | ARM64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-ARM64-1.0.0.exe) | Native installer for Windows 11 on ARM |
-| **Radium Portable Full (ARM64)** | ARM64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-v1.0.0-Windows-ARM64-Full.zip) | Portable package with ARM64 stream tools |
+| **Radium Installer (Standard)** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-x64-0.3.2.exe) | Recommended installer for Windows 11 / 10 x64 |
+| **Radium Portable Full** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-x64-Full.zip) | Portable package bundling N_m3u8DL-RE & FFmpeg stream workers |
+| **Radium Portable Core** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-x64-Core.zip) | Core package; stream tools must be available separately |
+| **Radium Core Installer** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-x64-Core-0.3.2.exe) | Lightweight installer without bundled stream binaries |
+| **Radium Installer (ARM64)** | ARM64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-ARM64-0.3.2.exe) | Native installer for Windows 11 on ARM |
+| **Radium Portable Full (ARM64)** | ARM64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-ARM64-Full.zip) | Portable package with ARM64 stream tools |
 | **Browser Extension** | Cross-browser | [extension source](extension/) | Manifest V3 extension for Chrome, Brave, Edge & Firefox |
 
-Cryptographic checksums for all release binaries are available in [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/SHA256SUMS.txt).
+Cryptographic checksums for published release binaries are available in [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/SHA256SUMS.txt).
+
+### Browser Extension Setup
+
+Browser extension installation is a **manual step** and is not completed automatically by the Radium installer. Install Radium first; the installer registers its Native Messaging Host, while the extension files are placed in the `extension` subfolder of the Radium installation directory.
+
+For Chrome, Brave, or Edge, open `chrome://extensions`, `brave://extensions`, or `edge://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `<Radium install folder>\extension`. For Firefox, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on...**, and select `<Radium install folder>\extension\manifest.firefox.json`.
+
+With a portable package, load the `extension` folder (or Firefox manifest) from the extracted package, then run `scripts\register-native-messaging.ps1` from that package folder. Open Radium and try downloading a file from a supported website to confirm the connection.
 
 <br>
 
@@ -104,7 +112,7 @@ Cryptographic checksums for all release binaries are available in [SHA256SUMS.tx
       <br>
       <sub>Instant Add Download prompt with pre-flight file probing, directory selection, and disk space guards.</sub>
       <h3>Smart Interception &amp; Pre-Flight Probing</h3>
-      Whether triggered from the browser extension, clipboard URL detection, or manual URL entry (<kbd>Ctrl</kbd>+<kbd>N</kbd>), Radium validates requests before allocating bandwidth.
+      Whether triggered from the browser extension, clipboard URL detection, or manual URL entry, Radium validates requests before allocating bandwidth.
       <br><br>
       <b>Capabilities:</b>
       <ul>
@@ -187,7 +195,7 @@ Combined Mean:
 ```
 
 #### Measured Factors Influencing Transfer Efficiency:
-1. **Adaptive Range Splitting:** Unlike static 256 KiB threshold downloaders that trigger dozens of micro-splits in the final seconds of a transfer, Radium enforces an adaptive splitting threshold ($4 \times \text{transfer\_speed\_bps} \times 0.25\text{s}$, clamped to 1–16 MiB). This reduced discarded connection slippage by **57.3%** in Trial 1 (from 4.76 MB down to 2.04 MB) and **42.4%** in Trial 2 (down to 2.74 MB), eliminating late-stage connection churn.
+1. **Adaptive Range Splitting:** The speed-based threshold expression is `clamp(4 × transfer_speed_bps × 0.25 s, 1 MiB, 16 MiB)`. The current scheduler uses the configured minimum split size with a 256 KiB floor while connections ramp up and a 1 MiB floor after concurrency is full. Benchmark records show discarded connection data fell by **57.3%** in Trial 1 (4.76 MB to 2.04 MB) and **42.4%** in Trial 2 (to 2.74 MB).
 2. **Immediate Worker Parallelism:** Radium’s initial connection ramp-up dynamically allocates available workers to clean segment boundaries before transitioning to work-stealing mode. All 8 workers remained saturated throughout the transfer.
 3. **Low-Overhead Native I/O:** Radium maintains pre-allocated sparse disk files and streaming disk commits via asynchronous WinHTTP I/O, using substantially less RAM (20.4–20.5 MB peak RSS vs IDM's 53.8–122.2 MB peak RSS across the trials). In Trial 2, IDM reached 122.2 MB during active segment assembly, whereas Radium avoided a post-processing assembly pass.
 
@@ -243,9 +251,9 @@ Radium implements an in-process, concurrent segmented HTTP/HTTPS download engine
                       Worker 0: [187.5 - 250 MB] ──► Spawns immediate connection
 ```
 
-1. **Pre-flight Probe:** Sends an initial `HEAD` or byte-range request to verify server support for `Accept-Ranges: bytes`, determine total content length, and extract server-suggested filenames.
+1. **Pre-flight Probe:** Sends a byte-range request to check range support, determine the content length, and extract server-suggested filenames.
 2. **Initial Spawning:** Spawns an initial connection. If the server supports byte ranges, additional segment workers are spawned up to the configured connection limit (default 8, maximum 32).
-3. **Adaptive Work-Stealing:** Fast workers do not sit idle. When a worker completes its assigned range, it inspects active peers, locates the largest remaining unfinished byte block, and splits it. Radium dynamically calculates the minimum split threshold based on real-time transfer speed ($4 \times \text{speed} \times 0.25\text{s}$), preventing useless micro-splits near the end of a download.
+3. **Adaptive Work-Stealing:** When a worker finishes its range, it can split the largest remaining block. The scheduler uses a 256 KiB floor while connections ramp up and a 1 MiB floor after reaching the configured concurrency.
 4. **Rejection Rollback:** If a remote server rejects a sub-range request (e.g., returning HTTP 200 instead of 206, or HTTP 416), the stolen range is rolled back to the original worker without data corruption.
 5. **Atomic Commit:** Download segments write into an isolated `*.radium.part` file using pre-allocated disk storage (`SetFileValidData` / sparse files). When all segments reach 100%, the file is atomically renamed to its final target path.
 
@@ -276,6 +284,8 @@ For media hosted via HLS or DASH manifests, Radium integrates out-of-process wor
 - **Track Probing & Remuxing:** Radium probes stream manifests to identify video, audio, and subtitle streams. Once segment downloads complete, FFmpeg remuxes the media into standard MP4 or MKV containers with magic-byte verification.
 
 See [`docs/STREAM_DOWNLOAD_PIPELINE.md`](docs/STREAM_DOWNLOAD_PIPELINE.md) for the complete pipeline specification.
+
+DRM-protected streams are unsupported; Radium rejects recognized DRM signaling rather than attempting decryption.
 
 <br>
 
@@ -345,23 +355,6 @@ See [`docs/SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) and [`docs/DATA
 
 <br>
 
-## Browser Extension Setup
-
-1. **Chromium (Google Chrome, Brave, Microsoft Edge):**
-   - Open your browser's extensions page (`chrome://extensions` or `brave://extensions`).
-   - Enable **Developer mode** in the top-right corner.
-   - Click **Load unpacked** and select the `extension/` directory.
-   - Run the included registration script to register the Native Messaging Host:
-     ```powershell
-     powershell -ExecutionPolicy Bypass -File scripts\register-native-messaging.ps1
-     ```
-
-2. **Mozilla Firefox:**
-   - Open `about:debugging#/runtime/this-firefox`.
-   - Click **Load Temporary Add-on...** and select `extension/manifest.firefox.json`.
-
-<br>
-
 ## Building from Source
 
 To compile Radium from source, use **Windows 11**, **Visual Studio 2022** (Desktop development with C++), and **CMake 3.25 or newer**:
@@ -377,22 +370,6 @@ The compiled binaries will be output to `build/win-x64/Release/`. See [`docs/DEV
 
 <br>
 
-## Keyboard Shortcuts
-
-| Shortcut | Action | Scope |
-|---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>N</kbd> | Open New Download prompt dialog | Global window |
-| <kbd>Ctrl</kbd> + <kbd>,</kbd> | Open Settings &amp; Configuration Center | Global window |
-| <kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>F</kbd> | Focus search-as-you-type filter | Global window |
-| <kbd>Space</kbd> | Pause or Resume selected download task | Queue table |
-| <kbd>F5</kbd> | Retry failed or paused download task | Queue table |
-| <kbd>Enter</kbd> | Open completed file in default system application | Queue table |
-| <kbd>Delete</kbd> | Remove selected task from the queue | Queue table |
-| <kbd>Shift</kbd> + <kbd>Delete</kbd> | Permanently delete task and remove downloaded file from disk | Queue table |
-| <kbd>Esc</kbd> | Dismiss Settings Center or active dialog | Dialog / Modal |
-
-<br>
-
 ## Testing and Verification
 
 Radium maintains comprehensive automated C++ unit and integration tests covering the download engine, work-stealing scheduler, BitTorrent parser, and storage:
@@ -401,7 +378,7 @@ Radium maintains comprehensive automated C++ unit and integration tests covering
 .\build\win-x64\Release\radium_unit_tests.exe
 ```
 
-All test suites pass with zero regressions. For details, consult:
+The repository includes C++ regression, browser extension, and integration suites. See the test matrix for coverage and recorded verification:
 - [Feature matrix](docs/FEATURE_MATRIX.md)
 - [Test matrix](docs/TEST_MATRIX.md)
 - [Windows release workflow](https://github.com/sayedalve/Radium-Download-Manager/actions/workflows/windows-release.yml)
@@ -410,35 +387,7 @@ All test suites pass with zero regressions. For details, consult:
 
 ## HTTP Server Compatibility
 
-Radium is designed to deliver resilient HTTP/HTTPS downloading across modern content distribution networks, dynamic object storage, and nonstandard or restrictive web servers. The download engine integrates strict RFC 9110 byte-range validation, adaptive connection scaling, and verified recovery procedures:
-
-- **Unannounced Byte-Range Support:** If a web server or CDN cache serves `200 OK` but omits the `Accept-Ranges: bytes` response header, Radium verifies range capabilities via a secondary probe for resources exceeding 128 KiB, enabling multi-connection segmented acceleration without manual configuration.
-- **Server Ignores Range Requests:** If a server advertises range support but subsequently ignores `Range:` headers by serving `200 OK` with full entity bodies, Radium detects the mismatch prior to writing disk chunks, aborts secondary streams, and merges unstarted stolen segments back into the primary stream for safe single-connection completion without byte overlaps or data corruption.
-- **Malformed & Broken Content-Range Headers:** When servers emit malformed, inverted, or out-of-bounds `Content-Range` headers (e.g. `start > end`, `end >= total`, or syntax corruption), Radium rejects the invalid range response. If the initial probe reveals broken range framing, it automatically falls back to an un-ranged single stream or aborts with descriptive error signaling rather than writing corrupt part files.
-- **RFC 9110 Section 14.4 Unsatisfied Ranges:** Handled distinctly for satisfied partial responses (`206`) versus unsatisfied boundary conditions (`416`). Genuine zero-byte resources returning `Content-Range: bytes */0` complete successfully as empty files, whereas unexpected `416` statuses during nonempty transfers trigger a safe abort without falsely marking incomplete part files as successful.
-- **Transient Rate Limiting & Overload (HTTP 429 & 503):** Radium parses both integer seconds and RFC 7231 / RFC 9110 HTTP-date timestamps in `Retry-After` headers. Under rate-limiting or server backpressure, it applies stepped concurrency reduction (`32 -> 16 -> 8 -> 4 -> 3 -> 2 -> 1`), retires redundant background workers to prevent server hammer collisions, and pauses active tasks into a user-action-resumable state when server-requested wait times exceed active worker limits.
-- **Midstream Disconnections & Resumption:** Connections terminated prematurely or reset by the remote host trigger automatic bounded retries with jittered exponential backoff. Surviving workers resume from verified disk cursors without discarding already-committed part file segments.
-- **Remote Entity & Validator Changes:** During paused or interrupted transfers, Radium verifies remote `ETag` and `Last-Modified` validators before resumption. Weak ETags (`W/"..."`) are omitted from `If-Range` requests per RFC 9110. If the remote resource changes (even if the file size remains identical), stale partial files are purged and the task is safely reset to prevent combining incompatible byte streams.
-- **Chunked Transfer Encoding & Indeterminate Sizes:** For dynamic streams or server responses omitting `Content-Length`, Radium streams through a zero-copy RFC 9112 chunked framing decoder in single-connection mode until clean EOF termination.
-- **Redirects & Security Scrubbing:** Radium follows up to 10 HTTP redirects across relative, absolute, and protocol-relative URIs, automatically stripping sensitive credentials (`Authorization`, `Cookie`) upon cross-origin domain shifts.
-
-> [!NOTE]
-> Web server configurations, proxies, and edge firewalls vary significantly. Certain non-standard servers (such as those returning corrupted byte streams, imposing CAPTCHA challenges, or mandating proprietary session handshakes) may prevent automated segmented acceleration or require single-stream browser capture.
-
-<br>
-
-## Known Limitations
-
-> [!IMPORTANT]
-> **Honest Engineering Boundaries:** Radium aims to be transparent about its scope and supported mechanisms.
->
-> 1. **Strict DRM Non-Circumvention:** Radium does **not** and will **never** decrypt Widevine, PlayReady, or FairPlay DRM-protected media. If a manifest signals `#EXT-X-KEY:METHOD=SAMPLE-AES-CTR` or DASH `cenc:pssh` encryption, Radium immediately aborts with error code `ERR_STREAM_DRM_PROTECTED`.
-> 2. **In-Memory Browser Blobs:** Ephemeral `blob:` and `data:` URLs generated strictly inside browser JavaScript memory cannot be accessed by external OS processes. The browser extension routes these downloads through the browser's native API rather than passing unreachable URLs to the native downloader.
-> 3. **Platform Scope:** The desktop interface is a native Windows Win32/GDI application. Linux builds cover core and test targets, not a Linux desktop UI.
-
-See [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) and [`docs/SECURITY_THREAT_MODEL.md`](docs/SECURITY_THREAT_MODEL.md).
-
-<br>
+Radium uses segmented downloads only after the server confirms valid `206 Partial Content` range responses. When range support is unavailable, it uses a single connection. If a later range request returns `200 OK` or invalid range data, Radium rejects that response before writing it and returns unstarted work for safe continuation. Resumes use saved progress and remote validators when available; changed resources may need to restart. Support depends on the server and resource.
 
 ## Contributing
 
