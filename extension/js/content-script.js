@@ -4,16 +4,43 @@
 // "Download with Radium" cosmic pill badge, provides real-time status/error feedback on click, intercepts link clicks
 // (with Alt-key bypass), captures media events, and relays page MAIN world messages.
 
+function isVideoOrDocFullscreen(video, doc) {
+  if (doc) {
+    const fsEl = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+    if (fsEl) return true;
+  }
+  if (video) {
+    if (typeof video.closest === "function") {
+      if (video.closest(".ytp-fullscreen") || video.closest(".fullscreen")) return true;
+    }
+    let p = video.parentElement;
+    while (p) {
+      if (p.classList && typeof p.classList.contains === "function" && (p.classList.contains("ytp-fullscreen") || p.classList.contains("fullscreen"))) {
+        return true;
+      }
+      p = p.parentElement;
+    }
+  }
+  return false;
+}
+
 function positionOverlayHost(video, hostEl) {
   if (!video || !hostEl) return;
   const doc = (video && video.ownerDocument) ? video.ownerDocument : (typeof document !== "undefined" ? document : null);
-  if (doc) {
-    const isFullscreen = Boolean(doc.fullscreenElement || doc.webkitFullscreenElement);
-    if (isFullscreen && doc.fullscreenElement && hostEl.parentElement !== doc.fullscreenElement) {
-      try { doc.fullscreenElement.appendChild(hostEl); } catch (_) {}
-    } else if (!isFullscreen && doc.body && hostEl.parentElement !== doc.body) {
-      try { doc.body.appendChild(hostEl); } catch (_) {}
+
+  const isFullscreen = isVideoOrDocFullscreen(video, doc);
+  if (isFullscreen) {
+    // When video or player is in fullscreen, completely hide the overlay so it never obstructs viewing
+    const fsCss = "display:none;opacity:0;pointer-events:none;visibility:hidden;";
+    if (hostEl.__fluxLastCss !== fsCss) {
+      hostEl.__fluxLastCss = fsCss;
+      hostEl.style.cssText = fsCss;
     }
+    return;
+  }
+
+  if (doc && doc.body && hostEl.parentElement !== doc.body) {
+    try { doc.body.appendChild(hostEl); } catch (_) {}
   }
 
   const rect = typeof video.getBoundingClientRect === "function"
@@ -30,8 +57,8 @@ function positionOverlayHost(video, hostEl) {
   const leftPx = Math.max(8, Math.round(Number.isFinite(rect.left) ? rect.left : 20));
 
   const visCss = (isCollapsed || isOffscreen)
-    ? "opacity:0;pointer-events:none;"
-    : "pointer-events:auto;";
+    ? "display:none;opacity:0;pointer-events:none;"
+    : "display:inline-flex;pointer-events:auto;";
   const nextCss = `position:fixed;top:${topPx}px;left:${leftPx}px;z-index:2147483647;${visCss}`;
   if (hostEl.__fluxLastCss !== nextCss) {
     hostEl.__fluxLastCss = nextCss;
@@ -219,21 +246,35 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
 
     const styleEl = doc.createElement("style");
     styleEl.textContent = `
+      :host {
+        all: initial;
+        display: inline-flex;
+      }
+      .radium-overlay-container {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #25262A;
+        border: 1px solid #414248;
+        border-radius: 6px;
+        padding: 2px 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+        font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      }
       button {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: #25262A;
+        background: transparent;
         color: #F2F2F3;
-        border: 1px solid #414248;
-        border-radius: 6px;
+        border: none;
+        border-radius: 4px;
         padding: 4px 9px;
         font: 600 11px "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
         letter-spacing: 0.01em;
         cursor: pointer;
         opacity: 0.94;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-        transition: border-color 0.12s ease, background 0.12s ease;
+        transition: background 0.12s ease, color 0.12s ease;
         white-space: nowrap;
       }
       button::before {
@@ -247,7 +288,6 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
       }
       button:hover:not(:disabled), button:focus-visible {
         opacity: 1;
-        border-color: #FF4F57;
         background: #37383D;
         color: #FFFFFF;
         outline: none;
@@ -257,7 +297,6 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
       }
       button:disabled {
         opacity: 0.72;
-        border-color: #414248;
         color: #A4A5AC;
         cursor: not-allowed;
       }
@@ -265,13 +304,36 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
         background: #64748B;
         box-shadow: none;
       }
+      select {
+        background: #2D2E32;
+        color: #F2F2F3;
+        border: 1px solid #414248;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font: 600 11px "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.12s ease;
+        max-width: 170px;
+        text-overflow: ellipsis;
+      }
+      select:hover, select:focus {
+        border-color: #FF4F57;
+      }
+      select option {
+        background: #25262A;
+        color: #F2F2F3;
+      }
       @media (prefers-reduced-motion: reduce) {
-        button { transition: none; }
+        button, select { transition: none; }
       }
     `;
     if (shadow && typeof shadow.appendChild === "function") {
       shadow.appendChild(styleEl);
     }
+
+    const container = doc.createElement("div");
+    container.className = "radium-overlay-container";
 
     const lastCand = (typeof window !== "undefined" && window.__fluxLastCandidate) ? window.__fluxLastCandidate : null;
     const topQ = (lastCand && Array.isArray(lastCand.qualities) && lastCand.qualities.length > 0)
@@ -286,11 +348,15 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
     btn.textContent = isDrm ? "DRM Protected (Unsupported)" : `Download with Radium${qSuffix}`;
     btn.disabled = isDrm;
     const baseBtnStyle =
-      "background:#2D2E32;color:#F2F2F3;border:1px solid #414248;border-radius:7px;" +
-      "padding:4px 9px;font:600 11px 'Segoe UI Variable Text','Segoe UI',sans-serif;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.35);white-space:nowrap;";
+      "background:transparent;color:#F2F2F3;border:none;border-radius:4px;" +
+      "padding:4px 9px;font:600 11px 'Segoe UI Variable Text','Segoe UI',sans-serif;cursor:pointer;white-space:nowrap;";
     if (btn.style) {
       btn.style.cssText = baseBtnStyle;
     }
+
+    const selectEl = doc.createElement("select");
+    selectEl.setAttribute("aria-label", "Select video quality");
+    selectEl.style.display = "none"; // Shown when qualities arrive
 
     const invokeClick = (ev) => {
       if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
@@ -306,27 +372,73 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
       const liveSrc = extractVideoElementSrc(video);
       const liveIsBlob = liveSrc.startsWith("blob:");
 
+      const cand = (typeof window !== "undefined" && window.__fluxLastCandidate) ? window.__fluxLastCandidate : null;
+      let chosenQ = hostEl.__fluxSelectedQuality || null;
+      if (!chosenQ && selectEl && selectEl.value && cand && Array.isArray(cand.qualities)) {
+        chosenQ = cand.qualities.find(q =>
+          String(q.id || "").toLowerCase() === String(selectEl.value).toLowerCase() ||
+          String(q.resolution || "").toLowerCase() === String(selectEl.value).toLowerCase()
+        ) || null;
+      }
+
       if (onDownloadClick) {
         onDownloadClick({
-          videoSrc: liveIsBlob ? "" : liveSrc,
+          videoSrc: (chosenQ && chosenQ.videoUrl) ? chosenQ.videoUrl : (liveIsBlob ? "" : liveSrc),
           isMseBlob: liveIsBlob,
           pageTitle: doc.title || "video",
           frameUrl: (doc.location ? doc.location.href : ""),
           tabUrl: (doc.location ? doc.location.href : ""),
           isIframe: (typeof window !== "undefined" && window.self !== window.top),
           buttonEl: btn,
+          selectEl,
           hostEl,
-          baseBtnStyle
+          baseBtnStyle,
+          qualityId: chosenQ ? (chosenQ.id || chosenQ.resolution) : undefined,
+          resolution: chosenQ ? chosenQ.resolution : undefined,
+          videoFilter: chosenQ ? (chosenQ.videoFilter || chosenQ.resolution) : undefined,
+          selectedQuality: chosenQ || undefined
         });
       }
     };
 
     btn.addEventListener("click", invokeClick);
     if (hostEl && typeof hostEl.addEventListener === "function") {
-      hostEl.addEventListener("click", invokeClick);
+      hostEl.addEventListener("click", (ev) => {
+        // If clicking on select element, let native select handle it without triggering download
+        const target = ev.target;
+        if (target === selectEl || (target && target.tagName === "SELECT")) return;
+        invokeClick(ev);
+      });
     }
 
-    shadow.appendChild(btn);
+    selectEl.addEventListener("change", (ev) => {
+      if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
+      const val = selectEl.value;
+      const cand = (typeof window !== "undefined" && window.__fluxLastCandidate) ? window.__fluxLastCandidate : null;
+      if (cand && Array.isArray(cand.qualities)) {
+        const found = cand.qualities.find(q =>
+          String(q.id || "").toLowerCase() === String(val).toLowerCase() ||
+          String(q.resolution || "").toLowerCase() === String(val).toLowerCase()
+        );
+        if (found) {
+          hostEl.__fluxSelectedQuality = found;
+          const qText = found.resolution || found.label || "";
+          const szStr = found.size > 0 ? ` (~${(found.size / 1048576).toFixed(0)} MB)` : "";
+          btn.textContent = `Download [${qText}${szStr}]`;
+          btn.title = `Download ${qText} with Radium Download Manager`;
+        }
+      }
+    });
+
+    selectEl.addEventListener("click", (ev) => {
+      if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
+    });
+
+    if (container.appendChild) {
+      container.appendChild(btn);
+      container.appendChild(selectEl);
+    }
+    shadow.appendChild(container);
     const targetContainer = doc.fullscreenElement || doc.body;
     if (targetContainer && targetContainer.appendChild) {
       targetContainer.appendChild(hostEl);
@@ -334,13 +446,16 @@ function scanAndAttachVideoOverlays(doc, onDownloadClick, minWidth = 240, minHei
 
     video.__fluxHostEl = hostEl;
     video.__fluxBtn = btn;
+    video.__fluxSelect = selectEl;
     hostEl.__fluxVideo = video;
     hostEl.__fluxBtn = btn;
+    hostEl.__fluxSelect = selectEl;
 
     attached.push({
       video,
       hostEl,
       btn,
+      selectEl,
       isBlob,
       isDrm,
       src,
@@ -732,24 +847,58 @@ function initContentScript() {
         if (typeof window !== "undefined") {
           window.__fluxLastCandidate = ev.data;
         }
-        // Dynamically update overlay badge label with detected quality and estimated size
+        // Dynamically update overlay badge label and quality selector with detected qualities and estimated size
         try {
           if (typeof document !== "undefined" && document.querySelectorAll) {
             const hosts = document.querySelectorAll("[data-flux-shadow-host]");
-            const topQ = (Array.isArray(ev.data.qualities) && ev.data.qualities.length > 0)
-              ? (ev.data.qualities.find(q => !q.isAudioOnly && String(q.resolution || "").toLowerCase().includes("1080")) ||
-                 ev.data.qualities.find(q => !q.isAudioOnly) ||
-                 ev.data.qualities[0])
+            const qualities = Array.isArray(ev.data.qualities) ? ev.data.qualities : [];
+            const topQ = (qualities.length > 0)
+              ? (qualities.find(q => !q.isAudioOnly && String(q.resolution || "").toLowerCase().includes("1080")) ||
+                 qualities.find(q => !q.isAudioOnly) ||
+                 qualities[0])
               : null;
+
             if (topQ) {
               ev.data.qualityId = topQ.id || topQ.resolution || "1080p";
               ev.data.resolution = topQ.resolution || "1080p";
               const qText = topQ.resolution || topQ.label || "";
               const szStr = topQ.size > 0 ? ` (~${(topQ.size / 1048576).toFixed(0)} MB)` : "";
+
               hosts.forEach(h => {
+                if (!h.__fluxSelectedQuality) {
+                  h.__fluxSelectedQuality = topQ;
+                }
+                const chosen = h.__fluxSelectedQuality || topQ;
+                const chosenText = chosen.resolution || chosen.label || "";
+                const chosenSz = chosen.size > 0 ? ` (~${(chosen.size / 1048576).toFixed(0)} MB)` : "";
+
                 if (h.__fluxBtn && !h.getAttribute("data-flux-status") && !h.getAttribute("data-flux-drm")) {
-                  h.__fluxBtn.textContent = `Download [${qText}${szStr}]`;
-                  h.__fluxBtn.title = `Download ${qText} with Radium Download Manager`;
+                  h.__fluxBtn.textContent = `Download [${chosenText}${chosenSz}]`;
+                  h.__fluxBtn.title = `Download ${chosenText} with Radium Download Manager`;
+                }
+
+                // Populate or update the compact quality selection dropdown
+                const sel = h.__fluxSelect;
+                if (sel) {
+                  if (qualities.length > 1) {
+                    sel.innerHTML = "";
+                    for (const q of qualities) {
+                      const opt = document.createElement("option");
+                      const qId = q.id || q.resolution || "";
+                      opt.value = qId;
+                      const qLbl = q.label || q.resolution || qId;
+                      const qSizeStr = q.size > 0 ? ` (~${(q.size / 1048576).toFixed(0)} MB)` : "";
+                      opt.textContent = `${qLbl}${qSizeStr}`;
+                      if (chosen && (String(chosen.id || "").toLowerCase() === String(qId).toLowerCase() ||
+                                     String(chosen.resolution || "").toLowerCase() === String(qId).toLowerCase())) {
+                        opt.selected = true;
+                      }
+                      sel.appendChild(opt);
+                    }
+                    sel.style.display = "inline-block";
+                  } else {
+                    sel.style.display = "none";
+                  }
                 }
               });
             }
@@ -927,17 +1076,17 @@ function initContentScript() {
     }
 
     const lastCand = (typeof window !== "undefined" && window.__fluxLastCandidate) ? window.__fluxLastCandidate : null;
-    let topQ = null;
-    if (lastCand && Array.isArray(lastCand.qualities)) {
-      topQ = lastCand.qualities.find(q => !q.isAudioOnly && String(q.resolution || "").toLowerCase().includes("1080")) ||
-             lastCand.qualities.find(q => !q.isAudioOnly) ||
-             lastCand.qualities[0];
+    let chosenQ = mediaMeta.selectedQuality || (hostEl && hostEl.__fluxSelectedQuality) || null;
+    if (!chosenQ && lastCand && Array.isArray(lastCand.qualities)) {
+      chosenQ = lastCand.qualities.find(q => !q.isAudioOnly && String(q.resolution || "").toLowerCase().includes("1080")) ||
+                lastCand.qualities.find(q => !q.isAudioOnly) ||
+                lastCand.qualities[0];
     }
     const candidateId = mediaMeta.candidateId || (lastCand && lastCand.candidateId) || "";
-    const qualityId = mediaMeta.qualityId || (topQ && (topQ.id || topQ.resolution)) || (lastCand && lastCand.qualityId) || "";
-    const resolution = mediaMeta.resolution || (topQ && topQ.resolution) || (lastCand && lastCand.resolution) || "";
-    const videoFilter = mediaMeta.videoFilter || (topQ && (topQ.videoFilter || topQ.resolution)) || "best";
-    const videoSrc = mediaMeta.videoSrc || (lastCand ? (lastCand.url || lastCand.videoUrl) : "") || "";
+    const qualityId = mediaMeta.qualityId || (chosenQ && (chosenQ.id || chosenQ.resolution)) || (lastCand && lastCand.qualityId) || "";
+    const resolution = mediaMeta.resolution || (chosenQ && chosenQ.resolution) || (lastCand && lastCand.resolution) || "";
+    const videoFilter = mediaMeta.videoFilter || (chosenQ && (chosenQ.videoFilter || chosenQ.resolution)) || "best";
+    const videoSrc = mediaMeta.videoSrc || (chosenQ && chosenQ.videoUrl) || (lastCand ? (lastCand.url || lastCand.videoUrl) : "") || "";
 
     safeSendRuntimeMessage({
       action: "downloadMedia",
@@ -945,7 +1094,7 @@ function initContentScript() {
       qualityId,
       resolution,
       videoFilter,
-      selectedQuality: topQ,
+      selectedQuality: chosenQ,
       url: videoSrc,
       isMseBlob: Boolean(mediaMeta.isMseBlob),
       pageTitle: mediaMeta.pageTitle || document.title || "video",

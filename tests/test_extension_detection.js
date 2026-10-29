@@ -1090,6 +1090,102 @@ async function runTests() {
   assert.strictEqual(submittedParams.fileName, "9755.mp4", "Numeric server filename receives MIME-derived media extension");
   console.log("  -> PASS");
 
+  console.log("\n[19/19] Testing In-Page Quality Selector Dropdown & Fullscreen Overlay Hiding...");
+  // 1. Verify fullscreen detection hides the overlay completely
+  const fsHost = { style: {} };
+  const mockFsVideo = {
+    parentElement: { classList: { contains: (cls) => cls === "ytp-fullscreen" } },
+    getBoundingClientRect: () => ({ width: 1920, height: 1080, top: 0, bottom: 1080, left: 0, right: 1920 })
+  };
+  const mockFsDoc = {
+    fullscreenElement: null,
+    body: { appendChild: () => {} }
+  };
+  positionOverlayHost(mockFsVideo, fsHost);
+  assert.ok(fsHost.style.cssText.includes("display:none"), "Overlay is hidden when video parent has ytp-fullscreen class");
+  assert.ok(fsHost.style.cssText.includes("visibility:hidden"), "Overlay has visibility:hidden in fullscreen");
+
+  // Exit fullscreen and verify display is restored
+  mockFsVideo.parentElement.classList.contains = () => false;
+  positionOverlayHost(mockFsVideo, fsHost);
+  assert.ok(fsHost.style.cssText.includes("display:inline-flex"), "Overlay restores display:inline-flex when exiting fullscreen");
+  assert.ok(fsHost.style.cssText.includes("top:8px"), "Overlay restores correct positioning after fullscreen");
+
+  // 2. Verify scanAndAttachVideoOverlays creates a select element and download button
+  let capturedDownloadMeta = null;
+  const mockSelectVideo = {
+    currentSrc: "https://cdn.example.com/stream.mp4",
+    src: "https://cdn.example.com/stream.mp4",
+    mediaKeys: null,
+    dataset: {},
+    parentElement: null,
+    getBoundingClientRect: () => ({ width: 640, height: 360, top: 100, bottom: 460, left: 50, right: 690 })
+  };
+  let appendedHostEl = null;
+  const mockInteractiveDoc = {
+    location: { href: "https://www.youtube.com/watch?v=test1234", hostname: "www.youtube.com" },
+    title: "Interactive Video Quality Test",
+    body: { appendChild: (el) => { appendedHostEl = el; } },
+    createElement: (tag) => {
+      const el = {
+        tagName: tag.toUpperCase(),
+        style: {},
+        setAttribute: (k, v) => { el[k] = v; },
+        getAttribute: (k) => el[k],
+        addEventListener: (evt, fn) => { el["_" + evt] = fn; },
+        appendChild: (child) => { el._children = el._children || []; el._children.push(child); }
+      };
+      if (tag === "div") {
+        el.attachShadow = () => ({
+          appendChild: (c) => { el._shadowChild = c; }
+        });
+      }
+      return el;
+    },
+    querySelectorAll: (sel) => (sel === "video" ? [mockSelectVideo] : [])
+  };
+
+  const attachedList = scanAndAttachVideoOverlays(mockInteractiveDoc, (meta) => { capturedDownloadMeta = meta; });
+  assert.strictEqual(attachedList.length, 1, "Overlay attached to mock video");
+  const attachedItem = attachedList[0];
+  assert.ok(attachedItem.btn, "Attached overlay contains button element");
+  assert.ok(attachedItem.selectEl, "Attached overlay contains quality select element");
+
+  // 3. Simulate arrival of catCatchAddMedia with multiple qualities (e.g. 1080p, 720p, 480p, WebM, Audio)
+  const candidateWithQualities = {
+    action: "catCatchAddMedia",
+    url: "https://rr.googlevideo.com/videoplayback?itag=18",
+    qualities: [
+      { id: "1080p_mp4", resolution: "1080p", label: "1080p (MP4)", ext: "mp4", size: 44040192, videoUrl: "https://rr.googlevideo.com/1080p" },
+      { id: "720p_mp4", resolution: "720p", label: "720p (MP4)", ext: "mp4", size: 20971520, videoUrl: "https://rr.googlevideo.com/720p" },
+      { id: "audio_only", resolution: "Audio", label: "Audio Only (128k)", ext: "m4a", size: 3145728, videoUrl: "https://rr.googlevideo.com/audio" }
+    ]
+  };
+
+  // Simulate window receiving catCatchAddMedia
+  global.window = {
+    location: { origin: "https://www.youtube.com" },
+    __fluxLastCandidate: candidateWithQualities
+  };
+  mockInteractiveDoc.querySelectorAll = (sel) => {
+    if (sel === "[data-flux-shadow-host]") return [attachedItem.hostEl];
+    return [];
+  };
+
+  // Trigger change on selectEl to select 720p
+  attachedItem.selectEl.value = "720p_mp4";
+  attachedItem.selectEl._change({ stopPropagation: () => {} });
+  assert.ok(attachedItem.btn.textContent.includes("720p"), "Button text dynamically updates to selected quality 720p");
+  assert.ok(attachedItem.btn.textContent.includes("20 MB"), "Button text dynamically updates with estimated size (~20 MB)");
+
+  // 4. Click download button and verify payload contains the user's selected 720p quality
+  attachedItem.btn._click({ stopPropagation: () => {}, preventDefault: () => {} });
+  assert.ok(capturedDownloadMeta, "Download click handler was invoked");
+  assert.strictEqual(capturedDownloadMeta.qualityId, "720p_mp4", "Download metadata contains selected qualityId 720p_mp4");
+  assert.strictEqual(capturedDownloadMeta.resolution, "720p", "Download metadata contains selected resolution 720p");
+  assert.strictEqual(capturedDownloadMeta.videoSrc, "https://rr.googlevideo.com/720p", "Download metadata uses selected quality videoUrl");
+  console.log("  -> PASS");
+
   // Extension manifest parity check
   const rootDir = path.resolve(__dirname, "..");
   const mDev = JSON.parse(fs.readFileSync(path.join(rootDir, "extension", "manifest.json"), "utf8"));
