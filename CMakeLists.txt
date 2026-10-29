@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.24)
-project(Radium VERSION 0.3.2 LANGUAGES C CXX)
+project(Radium VERSION 1.0.0 LANGUAGES C CXX)
 add_compile_definitions(
     FLUX_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
     FLUX_VERSION_MINOR=${PROJECT_VERSION_MINOR}

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- Windows x64 Release Packaging Script (v0.3.0)
 # Assembles standalone portable zip packages (Full and Core editions),
 # performs strict pre-flight binary validation, stages clean extension assets,
@@ -35,14 +35,14 @@ if (-not $Version) {
             }
         } catch {}
         if (-not $Version) {
-            $Version = "0.3.1"
+            $Version = "1.0.0"
         }
     }
 }
 if ($Version -match '^v?(\d+\.\d+\.\d+.*)$') {
     $Version = $Matches[1]
 } else {
-    throw "Invalid version format '$Version'. Expected semantic version like '0.3.1'."
+    throw "Invalid version format '$Version'. Expected semantic version like '1.0.0'."
 }
 
 # 2. Resolve Output Directory
@@ -388,7 +388,7 @@ Official Upstream Projects:
             buildDate = [DateTime]::UtcNow.ToString("o")
             gitCommit = $gitCommit
             repository = "https://github.com/sayedalve/Radium-Download-Manager"
-            license = "GPL-3.0-or-later"
+            license = "Apache-2.0"
             installedDiskFootprintBytes = $uncompressedBytes
             installedDiskFootprintMB = $uncompressedMb
             standardWorkerLocation = "tools/win-x64"

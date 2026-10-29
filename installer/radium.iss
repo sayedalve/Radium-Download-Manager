@@ -1,4 +1,4 @@
-; SPDX-License-Identifier: GPL-3.0-or-later
+; SPDX-License-Identifier: Apache-2.0
 ; Radium Download Manager -- Inno Setup 6 Windows 11 x64 Installer Script (v0.3.0)
 ; Installs radium.exe (WIN32 GUI), radium-nmh.exe (CUI Native Messaging Host),
 ; optional stream workers (N_m3u8DL-RE & FFmpeg), browser extension assets, and
@@ -13,7 +13,7 @@
 #define MyAppName "Radium Download Manager"
 #define MyAppShortName "Radium"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.3.1"
+  #define MyAppVersion "1.0.0"
 #endif
 #define MyAppPublisher "Radium Contributors"
 #define MyAppURL "https://github.com/sayedalve/Radium-Download-Manager"

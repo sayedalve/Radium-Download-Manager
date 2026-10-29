@@ -16,6 +16,7 @@ tools/win-x64/*
 !tools/win-x64/.gitkeep
 *.exe
 *.dll
+!release/*.exe
 
 # Third-party dependencies & audit artifacts
 third_party/
@@ -25,6 +26,7 @@ idm audit/
 *.zip
 *.tar.gz
 *.7z
+!release/*.zip
 
 # Visual Studio / MSVC artifacts
 .vs/

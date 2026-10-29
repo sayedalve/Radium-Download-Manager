@@ -17,3 +17,12 @@ docs/archive/** linguist-documentation
 *.hpp whitespace=cr-at-eol
 *.iss whitespace=cr-at-eol
 *.ps1 whitespace=cr-at-eol
+
+# Release binaries and executables
+*.exe binary
+*.dll binary
+*.zip binary
+*.tar.gz binary
+*.7z binary
+*.ico binary
+release/** binary

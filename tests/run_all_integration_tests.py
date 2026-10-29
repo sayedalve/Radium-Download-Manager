@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # OpenIDM — Portable End-to-End Integration, HTTP Fault-Injection, Native Messaging IPC,
 # Stream Pipeline (HLS/DASH/AES-128 + FFmpeg), UI Snapshot, and Enforced Benchmark Suite (8 Suites).
 
@@ -898,7 +898,7 @@ def main():
         assert leftover_temp_count == 0, f"Found {leftover_temp_count} uncleaned temporary part files"
 
         metrics = {
-            "version": "0.3.1",
+            "version": "1.0.0",
             "product_name": "Radium Download Manager",
             "short_name": "Radium",
             "host_platform": f"{platform.system()} {platform.release()} ({platform.machine()})",

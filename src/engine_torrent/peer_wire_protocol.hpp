@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM / Flux â€” BitTorrent Peer Wire Protocol (BEP 3, BEP 23, BEP 52)
 // Direct reuse of aria2 BitTorrent wire framing, handshake, and compact peer unpacking algorithms
 #pragma once
@@ -237,7 +237,7 @@ public:
         BencodeValue m = BencodeValue::MakeDict();
         m.as_dict()["ut_metadata"] = BencodeValue(static_cast<int64_t>(ut_metadata_id));
         root.as_dict()["m"] = std::move(m);
-        root.as_dict()["v"] = BencodeValue("Radium 0.3.2");
+        root.as_dict()["v"] = BencodeValue("Radium 1.0.0");
         if (metadata_size > 0) {
             root.as_dict()["metadata_size"] = BencodeValue(static_cast<int64_t>(metadata_size));
         }

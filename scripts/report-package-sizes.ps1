@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Radium Download Manager -- Package Size Reporting & Budget Audit Script (v0.3.0)
 # Measures each packaged component, distinguishes installed disk footprint from
 # compressed ZIP and Inno Setup installer download sizes, and verifies compliance
@@ -39,7 +39,7 @@ if (-not $Version) {
             }
         } catch {}
         if (-not $Version) {
-            $Version = "0.3.1"
+            $Version = "1.0.0"
         }
     }
 }

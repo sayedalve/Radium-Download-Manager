@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Adapted from xifangczy/cat-catch (js/init.js) for Radium Browser Integration.
 // Preserves Cat Catch's G configuration model, Ext/Type/Regex rule tables, header cache,
 // per-tab/per-URL click correlation tables, redirect chains, and diagnostic pipeline log ring buffer.
@@ -12,7 +12,7 @@ var SourceType = {
 };
 
 var G = {
-  version: "0.3.1",
+  version: "1.0.0",
   nativeHostName: "com.radium.downloadmanager",
   fallbackNativeHostNames: ["com.flux.downloadmanager", "org.flux.native", "org.openidm.native"],
   enableCapture: true,

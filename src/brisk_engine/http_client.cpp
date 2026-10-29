@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 #include "brisk_engine/http_client.hpp"
 #include "common/crypto_utils.hpp"
 
@@ -800,7 +800,7 @@ Result<HttpResponseMeta> HttpClient::PerformGet(
         }
 
         HINTERNET hSession = WinHttpOpen(
-            L"Radium/0.3.2 (Windows NT 10.0; Win64; x64)",
+            L"Radium/1.0.0 (Windows NT 10.0; Win64; x64)",
             access_type,
             proxy_name,
             proxy_bypass,
@@ -1138,7 +1138,7 @@ Result<HttpResponseMeta> HttpClient::PerformGet(
             req << k << ": " << v << "\r\n";
         }
         if (!has_ua) {
-            req << "User-Agent: Radium/0.3.2 (Windows NT 10.0; Win64; x64)\r\n";
+            req << "User-Agent: Radium/1.0.0 (Windows NT 10.0; Win64; x64)\r\n";
         }
         if (range_start.has_value()) {
             req << "Range: bytes=" << *range_start << "-";

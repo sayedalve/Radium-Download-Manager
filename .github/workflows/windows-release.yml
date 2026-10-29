@@ -64,7 +64,7 @@ jobs:
             }
           } else {
             $cmakePath = "CMakeLists.txt"
-            $ver = "0.3.1"
+            $ver = "1.0.0"
             if (Test-Path $cmakePath) {
               $cmakeContent = Get-Content $cmakePath -Raw
               if ($cmakeContent -match 'project\s*\(\s*(?:Radium|Flux)\s+VERSION\s+(\d+\.\d+\.\d+)') {
@@ -75,7 +75,7 @@ jobs:
           }
 
           if ($ver -notmatch '^\d+\.\d+\.\d+([.-].+)?$') {
-            throw "Resolved version '$ver' is not valid SemVer (e.g. 0.3.1, 0.3.1-beta.1)"
+            throw "Resolved version '$ver' is not valid SemVer (e.g. 1.0.0, 1.0.0-beta.1)"
           }
 
           Write-Host "Canonical release version: $ver"
@@ -426,7 +426,7 @@ jobs:
             }
           } else {
             $cmakePath = "CMakeLists.txt"
-            $ver = "0.3.2"
+            $ver = "1.0.0"
             if (Test-Path $cmakePath) {
               $cmakeContent = Get-Content $cmakePath -Raw
               if ($cmakeContent -match 'project\s*\(\s*(?:Radium|Flux)\s+VERSION\s+(\d+\.\d+\.\d+)') {
@@ -669,6 +669,54 @@ jobs:
             }
             $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash
             Write-Host "Verified asset: $($f.Name) [SHA256: $hash]"
+          }
+
+      - name: Stage Installers to Repository release Directory
+        shell: powershell
+        run: |
+          Write-Host "Staging installers and checksums to release/ folder..."
+          if (-not (Test-Path "release")) {
+            New-Item -ItemType Directory -Path "release" -Force
+          }
+          # Copy installers and SHA256SUMS to release/
+          Get-ChildItem -Path dist -Filter "Radium-Setup-*.exe" | Copy-Item -Destination "release" -Force
+          if (Test-Path "dist/SHA256SUMS.txt") {
+            Copy-Item -Path "dist/SHA256SUMS.txt" -Destination "release" -Force
+          }
+          Write-Host "Staged files in release/:"
+          Get-ChildItem -Path "release"
+
+      - name: Commit and Push Release Installers to Repository
+        shell: powershell
+        run: |
+          Write-Host "Checking for unstaged/untracked release artifacts in release/..."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Determine target branch: if running on tag or branch
+          $targetBranch = "main"
+          git fetch origin $targetBranch
+          git checkout $targetBranch
+
+          # Ensure release directory has the generated files
+          if (-not (Test-Path "release")) {
+            New-Item -ItemType Directory -Path "release" -Force
+          }
+          Get-ChildItem -Path dist -Filter "Radium-Setup-*.exe" | Copy-Item -Destination "release" -Force
+          if (Test-Path "dist/SHA256SUMS.txt") {
+            Copy-Item -Path "dist/SHA256SUMS.txt" -Destination "release" -Force
+          }
+
+          git add -f release/
+          $status = git status --porcelain release/
+          if ($status) {
+            Write-Host "Committing official release installers to repository release/ folder..."
+            git commit -m "release: stage official Radium v${{ needs.build-and-package-x64.outputs.version }} installers [skip ci]"
+            # Push safely to target branch
+            git push origin $targetBranch
+            Write-Host "Successfully pushed release/ installers to $targetBranch." -ForegroundColor Green
+          } else {
+            Write-Host "No changes detected in release/ folder."
           }
 
       - name: Publish Official GitHub Release

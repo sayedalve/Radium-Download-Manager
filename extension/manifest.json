@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Radium Download Manager",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "description": "Automatic download capture and multi-layered video/stream detection (HLS/DASH/MP4/WebM/YouTube) for Radium Download Manager.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4FFNjFp5a5FSWOM0ET0+VglP9zexxbr6o1O7QYStMF3tAtO5u+F3qvnZkloHdNHENYQSDKFmyuel9ydpLhBSw8kpmhjZV/VcBG+SHr0OPwYiiQGNic1l1dCm31Q0GWOMdRFe8Uh6dYdBz0epnVMnvnv5+LzXbndhcdaB2Iu/lpnutSsXkNnL9emDach4kNsvVyi2awUUgvTi6ho33r/L/ufjO0VpL81w/KiXyTjPp/FkxbFp2/jkHJnkqzlWN7xB38hOKud2uHycuXnOKrsWxB4mr5/4y9ToRoITqb0+o1Gzge66ojhLqySgVm2oc2NBb19hWIEvjsSAOVL4VVm+awIDAQAB",
   "permissions": [

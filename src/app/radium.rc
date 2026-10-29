@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Radium Download Manager — Windows PE Version Resource & Application Metadata
 
 #include <windows.h>
@@ -8,8 +8,8 @@
 IDI_APPLICATION ICON "radium.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     0,3,1,0
-PRODUCTVERSION  0,3,1,0
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS       VS_FF_DEBUG
@@ -26,12 +26,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "Radium Open Source Contributors"
             VALUE "FileDescription",  "Radium Download Manager \u2014 Native Windows 11 Desktop Application"
-            VALUE "FileVersion",      "0.3.1.0"
+            VALUE "FileVersion",      "1.0.0.0"
             VALUE "InternalName",     "radium.exe"
-            VALUE "LegalCopyright",   "Copyright (C) 2026 Radium Contributors. Licensed under GPL-3.0-or-later."
+            VALUE "LegalCopyright",   "Copyright (C) 2026 Sayed Alve and Radium Contributors. Licensed under Apache-2.0."
             VALUE "OriginalFilename", "radium.exe"
             VALUE "ProductName",      "Radium Download Manager"
-            VALUE "ProductVersion",   "0.3.1.0"
+            VALUE "ProductVersion",   "1.0.0.0"
         END
     END
     BLOCK "VarFileInfo"

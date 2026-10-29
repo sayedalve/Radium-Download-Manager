@@ -1,6 +1,6 @@
 {
   "name": "radium-download-manager",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "description": "Radium Download Manager Browser Extension & E2E Runtime Test Suite",
   "private": true,
   "scripts": {

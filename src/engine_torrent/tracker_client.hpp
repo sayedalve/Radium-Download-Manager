@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // OpenIDM / Flux — BitTorrent Tracker Client (BEP 3 HTTP/HTTPS, BEP 15 UDP Trackers, BEP 23 Compact)
 #pragma once
 
@@ -163,7 +163,7 @@ public:
         std::string response_body;
         std::atomic<bool> cancel_flag{false};
         std::map<std::string, std::string> req_headers;
-        req_headers["User-Agent"] = "Radium/0.3.2 (BitTorrent; Win64)";
+        req_headers["User-Agent"] = "Radium/1.0.0 (BitTorrent; Win64)";
         req_headers["Accept"] = "*/*";
 
         brisk::HttpClient::HttpNetworkOptions net_opts;
