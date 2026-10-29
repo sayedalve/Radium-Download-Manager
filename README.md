@@ -43,7 +43,7 @@
 <br>
 
 <p align="center">
-  <img src="docs/images/readme/radium-main-window.jpg" alt="Radium Download Manager Main Window showing active segmented downloads, transfer speeds, and category filters" width="100%">
+  <img src="docs/images/readme/radium-main-window.png" alt="Radium Download Manager Main Window showing active segmented downloads, transfer speeds, and category filters" width="100%">
   <br>
   <sub>The Radium main application window: Deep Charcoal dark theme, live segmented progress bars, speed and size telemetry, and category filters.</sub>
 </p>
