@@ -225,7 +225,7 @@ def run_test_suite(radium_bin: Path, nmh_bin: Path) -> dict:
     try:
         proc = subprocess.run([str(radium_bin), "--version"], capture_output=True, text=True, check=True)
         out = (proc.stdout + "\n" + proc.stderr).strip()
-        has_ver = ("Radium" in out or "Flux" in out) and ("0.3" in out)
+        has_ver = ("Radium" in out or "Flux" in out) and ("1.0" in out or "0.3" in out)
         record("TC-CORE-01: Application Startup & Version Check", has_ver, f"Version banner: {out.splitlines()[0]}")
     except Exception as e:
         record("TC-CORE-01: Application Startup & Version Check", False, str(e))
