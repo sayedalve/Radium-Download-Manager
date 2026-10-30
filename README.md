@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/sayedalve/Radium-Download-Manager?style=flat-square"></a>
-  <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20x64%20(v0.3.2)-0078D4?style=flat-square&logo=windows11"></a>
+  <a href="https://github.com/sayedalve/Radium-Download-Manager/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20x64%20(v1.0.0)-0078D4?style=flat-square&logo=windows11"></a>
   <img alt="Language: C++20" src="https://img.shields.io/badge/Language-ISO%20C%2B%2B20-00599C?style=flat-square&logo=c%2B%2B">
   <img alt="UI: Native Win32" src="https://img.shields.io/badge/UI-Native%20Win32-22c55e?style=flat-square">
   <img alt="Extension: Manifest V3" src="https://img.shields.io/badge/Extension-Manifest%20V3-eab308?style=flat-square&logo=googlechrome">
@@ -79,19 +79,19 @@ Radium is a lightweight, high-speed Windows 11 download manager designed to repl
 
 ## Downloads & Installation
 
-The latest published release is **[v0.3.2](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v0.3.2)**. The repository source is prepared as version `1.0.0`, but that release has not been published yet. These packages are available for 64-bit Windows:
+The latest published release is **[v1.0.0](https://github.com/sayedalve/Radium-Download-Manager/releases/tag/v1.0.0)**. These packages are available for 64-bit Windows:
 
 | Package | Architecture | Format | Description |
 | :--- | :---: | :---: | :--- |
-| **Radium Installer (Standard)** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-x64-0.3.2.exe) | Recommended installer for Windows 11 / 10 x64 |
-| **Radium Portable Full** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-x64-Full.zip) | Portable package bundling N_m3u8DL-RE & FFmpeg stream workers |
-| **Radium Portable Core** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-x64-Core.zip) | Core package; stream tools must be available separately |
-| **Radium Core Installer** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-x64-Core-0.3.2.exe) | Lightweight installer without bundled stream binaries |
-| **Radium Installer (ARM64)** | ARM64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-Setup-ARM64-0.3.2.exe) | Native installer for Windows 11 on ARM |
-| **Radium Portable Full (ARM64)** | ARM64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/Radium-v0.3.2-Windows-ARM64-Full.zip) | Portable package with ARM64 stream tools |
+| **Radium Installer (Standard)** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-x64-1.0.0.exe) | Recommended installer for Windows 11 / 10 x64 |
+| **Radium Portable Full** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-v1.0.0-Windows-x64-Full.zip) | Portable package bundling N_m3u8DL-RE & FFmpeg stream workers |
+| **Radium Portable Core** | x64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-v1.0.0-Windows-x64-Core.zip) | Core package; stream tools must be available separately |
+| **Radium Core Installer** | x64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-x64-Core-1.0.0.exe) | Lightweight installer without bundled stream binaries |
+| **Radium Installer (ARM64)** | ARM64 | [Setup (.exe)](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-Setup-ARM64-1.0.0.exe) | Native installer for Windows 11 on ARM |
+| **Radium Portable Full (ARM64)** | ARM64 | [ZIP Archive](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/Radium-v1.0.0-Windows-ARM64-Full.zip) | Portable package with ARM64 stream tools |
 | **Browser Extension** | Cross-browser | [extension source](extension/) | Manifest V3 extension for Chrome, Brave, Edge & Firefox |
 
-Cryptographic checksums for published release binaries are available in [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v0.3.2/SHA256SUMS.txt).
+Cryptographic checksums for published release binaries are available in [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/SHA256SUMS.txt).
 
 ### Browser Extension Setup
 
@@ -168,7 +168,7 @@ Radium is continuously evaluated against **Internet Download Manager (IDM 6.43.1
 The latest verified live internet benchmark evaluated both applications downloading an identical **500,000,000 byte** payload (`https://sg-lg.regxa.com/500MB.test`) on a Windows 11 host. Two sequential trials were run with reversed execution order to balance network transit variations.
 
 > [!NOTE]
-> **Build Identification:** The tested Radium executable is the development build of **v0.3.5** incorporating the adaptive range splitting policy. The latest published release package is **v0.3.2**.
+> **Build Identification:** The tested Radium executable was evaluated during development incorporating the adaptive range splitting policy now standard in **v1.0.0**. The previous baseline release was **v0.3.2**.
 
 Both downloads completed successfully and passed exact cryptographic verification (**SHA-256:** `b16f001a0731c8636f163586c16276b3714b8977242b67ae05fa60b96f685ebc`).
 
