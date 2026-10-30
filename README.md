@@ -95,19 +95,22 @@ Cryptographic checksums for published release binaries are available in [SHA256S
 
 > [!IMPORTANT]
 > ### 🧩 Browser Extension Setup (Required Manual Step)
-> **The browser extension is not installed automatically by the installer.** You must manually download/locate the extension files and load them into your browser.
+> **The browser extension is not bundled inside the installer.** You must download the extension files manually from this GitHub repository and load them into your browser.
 >
-> 1. **Install or Extract Radium First:** The installer automatically registers Radium's Native Messaging Host in your Windows registry, and places the extension files in the `extension` subfolder of your installation folder (`C:\Program Files\Radium Download Manager\extension` or your portable folder).
-> 2. **Load into Chromium Browsers (Chrome, Brave, Edge):**
->    - Open your browser's extensions page (`chrome://extensions`, `brave://extensions`, or `edge://extensions`).
+> 1. **Download the Extension Folder:**
+>    - Download or clone the [`extension/`](extension/) directory from this GitHub repository to your computer (e.g. download the repository ZIP via **Code → Download ZIP** and extract the `extension` folder).
+> 2. **Install & Run Radium:**
+>    - Run the Radium Installer or start Radium so that the Native Messaging Host is registered in your Windows registry.
+> 3. **Load into Chromium Browsers (Chrome, Brave, Edge):**
+>    - Open your browser's extensions management page: `chrome://extensions`, `brave://extensions`, or `edge://extensions`.
 >    - Turn on the **Developer mode** toggle (top right).
->    - Click **Load unpacked** (top left).
->    - Select the `<Radium install folder>\extension` folder (or the `extension/` folder from this repository).
-> 3. **Load into Firefox:**
+>    - Click the **Load unpacked** button (top left).
+>    - Select the downloaded **`extension`** folder.
+> 4. **Load into Firefox:**
 >    - Open `about:debugging#/runtime/this-firefox`.
 >    - Click **Load Temporary Add-on...**.
->    - Select `<Radium install folder>\extension\manifest.firefox.json`.
-> 4. **For Portable Packages:** Run `scripts\register-native-messaging.ps1` from the package root to register the host before loading the extension.
+>    - Select the `manifest.firefox.json` file inside the downloaded `extension` folder.
+> 5. **If using the Portable version:** Run `scripts\register-native-messaging.ps1` from the portable folder to register the native messaging host before loading the extension.
 
 <br>
 
