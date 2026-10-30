@@ -93,13 +93,21 @@ The latest published release is **[v1.0.0](https://github.com/sayedalve/Radium-D
 
 Cryptographic checksums for published release binaries are available in [SHA256SUMS.txt](https://github.com/sayedalve/Radium-Download-Manager/releases/download/v1.0.0/SHA256SUMS.txt).
 
-### Browser Extension Setup
-
-Browser extension installation is a **manual step** and is not completed automatically by the Radium installer. Install Radium first; the installer registers its Native Messaging Host, while the extension files are placed in the `extension` subfolder of the Radium installation directory.
-
-For Chrome, Brave, or Edge, open `chrome://extensions`, `brave://extensions`, or `edge://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `<Radium install folder>\extension`. For Firefox, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on...**, and select `<Radium install folder>\extension\manifest.firefox.json`.
-
-With a portable package, load the `extension` folder (or Firefox manifest) from the extracted package, then run `scripts\register-native-messaging.ps1` from that package folder. Open Radium and try downloading a file from a supported website to confirm the connection.
+> [!IMPORTANT]
+> ### 🧩 Browser Extension Setup (Required Manual Step)
+> **The browser extension is not installed automatically by the installer.** You must manually download/locate the extension files and load them into your browser.
+>
+> 1. **Install or Extract Radium First:** The installer automatically registers Radium's Native Messaging Host in your Windows registry, and places the extension files in the `extension` subfolder of your installation folder (`C:\Program Files\Radium Download Manager\extension` or your portable folder).
+> 2. **Load into Chromium Browsers (Chrome, Brave, Edge):**
+>    - Open your browser's extensions page (`chrome://extensions`, `brave://extensions`, or `edge://extensions`).
+>    - Turn on the **Developer mode** toggle (top right).
+>    - Click **Load unpacked** (top left).
+>    - Select the `<Radium install folder>\extension` folder (or the `extension/` folder from this repository).
+> 3. **Load into Firefox:**
+>    - Open `about:debugging#/runtime/this-firefox`.
+>    - Click **Load Temporary Add-on...**.
+>    - Select `<Radium install folder>\extension\manifest.firefox.json`.
+> 4. **For Portable Packages:** Run `scripts\register-native-messaging.ps1` from the package root to register the host before loading the extension.
 
 <br>
 
@@ -178,8 +186,10 @@ Both downloads completed successfully and passed exact cryptographic verificatio
 | **Trial 2** | Radium first, then IDM | **140.09 s** | 173.46 s | **19.24%** (-33.37 s) | **3.57 MB/s** / 2.88 MB/s (+23.96%) | **20.4 MB** / 122.2 MB | **83.31%** |
 | **Mean** | Combined across trials | **162.42 s** | 197.34 s | **17.69%** (-34.92 s) | **3.14 MB/s** / 2.57 MB/s (+22.18%) | **20.4 MB** / 88.0 MB | **76.76%** |
 
+<p><b>500 MB Transfer Duration Comparison</b> &nbsp;—&nbsp; <mark><b>(Lower is Better)</b></mark></p>
+
 ```
-500 MB Transfer Duration Comparison (Lower is Better)
+500 MB Transfer Duration Comparison (Lower is Better ▼)
 ─────────────────────────────────────────────────────────────────────────────
 Trial 1 (IDM 1st):
   IDM 6.43.15     ████████████████████████████████████ 221.21 s
