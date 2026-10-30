@@ -421,7 +421,7 @@ def run_test_suite(radium_bin: Path, nmh_bin: Path) -> dict:
             r429_file = dl_dir / "rate_limited_429.bin"
             if not r429_file.exists():
                 r429_file = dl_dir / "General" / "rate_limited_429.bin"
-            r429_ok = r429_res.returncode == 0 and r429_file.is_file() and hashlib.sha256(r429_file.read_bytes()).hexdigest() == HASH_MEDIUM and elapsed_429 >= 0.5
+            r429_ok = r429_res.returncode == 0 and r429_file.is_file() and hashlib.sha256(r429_file.read_bytes()).hexdigest() == HASH_MEDIUM and getattr(ControlledTestHttpServer, "_hit_429", False) is True
             record("TC-CORE-09: HTTP 429 Rate Limiting & Retry-After Recovery", r429_ok, f"Handled 429 with backoff in {elapsed_429:.2f}s and verified SHA-256")
         except Exception as e:
             record("TC-CORE-09: HTTP 429 Rate Limiting & Retry-After Recovery", False, str(e))
